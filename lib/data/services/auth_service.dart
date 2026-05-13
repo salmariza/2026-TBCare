@@ -1,13 +1,17 @@
 import 'package:tbcare_app/data/services/database_service.dart';
 
 class AuthService {
-  static Future<void> register(String name, String email, String password) async {
+  static Future<void> register(
+    String name,
+    String email,
+    String password,
+  ) async {
     if (name.isEmpty || email.isEmpty || password.isEmpty) {
       throw Exception('Semua field harus diisi');
     }
 
     try {
-      final db = await DatabaseService.database;
+      final db = await DatabaseService.instance.database;
       final existingUser = await db.query(
         'user',
         where: 'email = ?',
@@ -18,14 +22,11 @@ class AuthService {
         throw Exception('Email sudah terdaftar');
       }
 
-      await db.insert(
-        'user',
-        {
-          'name': name,
-          'email': email,
-          'password': password,
-        },
-      );
+      await db.insert('user', {
+        'name': name,
+        'email': email,
+        'password': password,
+      });
     } catch (error) {
       throw Exception('Gagal mendaftar: ${error.toString()}');
     }
@@ -37,7 +38,7 @@ class AuthService {
     }
 
     try {
-      final db = await DatabaseService.database;
+      final db = await DatabaseService.instance.database;
       final result = await db.query(
         'user',
         where: 'email = ? AND password = ?',
@@ -50,4 +51,3 @@ class AuthService {
     }
   }
 }
-
