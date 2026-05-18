@@ -15,23 +15,30 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE user (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
             email TEXT,
-            password TEXT
+            password TEXT,
+            age INTEGER,
+            gender TEXT,
+            profile_image TEXT
           )
         ''');
 
         await db.execute('''
           CREATE TABLE medicine (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             name TEXT,
             dosage TEXT,
-            schedule TEXT
+            schedule TEXT,
+            treatment_phase TEXT,
+            frequency TEXT,
+            FOREIGN KEY (user_id) REFERENCES user (id)
           )
         ''');
 
@@ -40,7 +47,74 @@ class DatabaseService {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             medicine_id INTEGER,
             status TEXT,
-            date TEXT
+            date TEXT,
+            taken_at TEXT,
+            note TEXT,
+            FOREIGN KEY (medicine_id) REFERENCES medicine (id)
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE treatment_plan (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            start_date TEXT,
+            end_date TEXT,
+            total_days INTEGER,
+            current_day INTEGER,
+            status TEXT,
+            reminder_enabled INTEGER,
+            FOREIGN KEY (user_id) REFERENCES user (id)
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE symptom (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            description TEXT
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE monitoring_symptom (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            monitoring_id INTEGER,
+            symptom_id INTEGER,
+            FOREIGN KEY (monitoring_id) REFERENCES monitoring (id),
+            FOREIGN KEY (symptom_id) REFERENCES symptom (id)
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE missed_dose (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            medicine_id INTEGER,
+            missed_date TEXT,
+            resolved INTEGER,
+            doctor_contacted INTEGER,
+            note TEXT,
+            FOREIGN KEY (medicine_id) REFERENCES medicine (id)
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE badge (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT,
+            description TEXT,
+            required_streak INTEGER
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE user_badge (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            badge_id INTEGER,
+            earned_at TEXT,
+            FOREIGN KEY (user_id) REFERENCES user (id),
+            FOREIGN KEY (badge_id) REFERENCES badge (id)
           )
         ''');
       },
