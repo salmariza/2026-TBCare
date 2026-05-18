@@ -53,7 +53,10 @@ class DashboardScreen extends StatelessWidget {
                   height: 44,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0x4CB0E4CC), width: 2),
+                    border: Border.all(
+                      color: const Color(0x4CB0E4CC),
+                      width: 2,
+                    ),
                     image: const DecorationImage(
                       image: NetworkImage("https://placehold.co/44x44"),
                       fit: BoxFit.cover,
@@ -69,7 +72,10 @@ class DashboardScreen extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: const Color(0xFF408A71),
                       shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF091413), width: 2),
+                      border: Border.all(
+                        color: const Color(0xFF091413),
+                        width: 2,
+                      ),
                     ),
                   ),
                 ),
@@ -110,7 +116,11 @@ class DashboardScreen extends StatelessWidget {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              const Icon(Icons.notifications_none, color: Colors.white, size: 20),
+              const Icon(
+                Icons.notifications_none,
+                color: Colors.white,
+                size: 20,
+              ),
               Positioned(
                 right: 10,
                 top: 10,
@@ -143,8 +153,14 @@ class DashboardScreen extends StatelessWidget {
               height: 1.38,
             ),
             children: [
-              TextSpan(text: 'Tetap konsisten\n', style: TextStyle(color: Colors.white)),
-              TextSpan(text: 'dengan pengobatanmu', style: TextStyle(color: Color(0xFFB0E4CC))),
+              TextSpan(
+                text: 'Tetap konsisten\n',
+                style: TextStyle(color: Colors.white),
+              ),
+              TextSpan(
+                text: 'dengan pengobatanmu',
+                style: TextStyle(color: Color(0xFFB0E4CC)),
+              ),
             ],
           ),
         ),
@@ -200,10 +216,20 @@ class DashboardScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   RichText(
                     text: const TextSpan(
-                      style: TextStyle(fontSize: 30, fontFamily: 'Poppins', fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                        fontSize: 30,
+                        fontFamily: 'Poppins',
+                        fontWeight: FontWeight.w700,
+                      ),
                       children: [
-                        TextSpan(text: 'Hari ke- ', style: TextStyle(color: Colors.white)),
-                        TextSpan(text: '23', style: TextStyle(color: Color(0xFFB0E4CC))),
+                        TextSpan(
+                          text: 'Hari ke- ',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        TextSpan(
+                          text: '23',
+                          style: TextStyle(color: Color(0xFFB0E4CC)),
+                        ),
                       ],
                     ),
                   ),
@@ -231,7 +257,9 @@ class DashboardScreen extends StatelessWidget {
                         value: 0.13,
                         strokeWidth: 8,
                         backgroundColor: Colors.white.withValues(alpha: 0.2),
-                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFB0E4CC)),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFFB0E4CC),
+                        ),
                       ),
                     ),
                     Column(
@@ -239,11 +267,19 @@ class DashboardScreen extends StatelessWidget {
                       children: [
                         const Text(
                           '13%',
-                          style: TextStyle(color: Colors.white, fontSize: 14, fontFamily: 'Poppins', fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontFamily: 'Poppins',
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         Text(
                           'selesai',
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.50), fontSize: 9),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.50),
+                            fontSize: 9,
+                          ),
                         ),
                       ],
                     ),
@@ -259,7 +295,9 @@ class DashboardScreen extends StatelessWidget {
               value: 0.13,
               minHeight: 10,
               backgroundColor: Colors.white.withValues(alpha: 0.20),
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFB0E4CC)),
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                Color(0xFFB0E4CC),
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -271,7 +309,10 @@ class DashboardScreen extends StatelessWidget {
                   Container(
                     width: 6,
                     height: 6,
-                    decoration: const BoxDecoration(color: Color(0xFFB0E4CC), shape: BoxShape.circle),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFB0E4CC),
+                      shape: BoxShape.circle,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -285,18 +326,29 @@ class DashboardScreen extends StatelessWidget {
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Row(
                   children: const [
-                    Icon(Icons.check_circle, color: Color(0xFFB0E4CC), size: 12),
+                    Icon(
+                      Icons.check_circle,
+                      color: Color(0xFFB0E4CC),
+                      size: 12,
+                    ),
                     SizedBox(width: 6),
                     Text(
                       'Sesuai Jadwal',
-                      style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -337,7 +389,11 @@ class DashboardScreen extends StatelessWidget {
                       color: const Color(0x33285A48),
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: const Icon(Icons.medical_services_outlined, color: Color(0xFF285A48), size: 24),
+                    child: const Icon(
+                      Icons.medical_services_outlined,
+                      color: Color(0xFF285A48),
+                      size: 24,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   const Column(
@@ -345,11 +401,20 @@ class DashboardScreen extends StatelessWidget {
                     children: [
                       Text(
                         'Waktunya untuk',
-                        style: TextStyle(color: Color(0xFF285A48), fontSize: 14, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          color: Color(0xFF285A48),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       Text(
                         'minum obat',
-                        style: TextStyle(color: Color(0xFF285A48), fontSize: 18, fontFamily: 'Poppins', fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          color: Color(0xFF285A48),
+                          fontSize: 18,
+                          fontFamily: 'Poppins',
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ],
                   ),
@@ -372,14 +437,22 @@ class DashboardScreen extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'Terjadwal: 07:00',
-                    style: TextStyle(color: Color(0xB2285A48), fontSize: 12, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                      color: Color(0xB2285A48),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
                 Icon(Icons.medication, color: Color(0x99285A48), size: 16),
                 SizedBox(width: 4),
                 Text(
                   'Rifampicin ·\nIsoniazid',
-                  style: TextStyle(color: Color(0x99285A48), fontSize: 12, height: 1.2),
+                  style: TextStyle(
+                    color: Color(0x99285A48),
+                    fontSize: 12,
+                    height: 1.2,
+                  ),
                 ),
               ],
             ),
@@ -410,7 +483,11 @@ class DashboardScreen extends StatelessWidget {
                 SizedBox(width: 8),
                 Text(
                   'Tandai Sudah',
-                  style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -435,11 +512,19 @@ class DashboardScreen extends StatelessWidget {
             children: [
               Text(
                 'Status Hari Ini',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.80), fontSize: 14, fontFamily: 'Poppins', fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.80),
+                  fontSize: 14,
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               Text(
                 'Wed, 8 Jan',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.30), fontSize: 12),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.30),
+                  fontSize: 12,
+                ),
               ),
             ],
           ),
@@ -460,22 +545,48 @@ class DashboardScreen extends StatelessWidget {
                     color: const Color(0x59285A48),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.calendar_today, color: Color(0xFFB0E4CC)),
+                  child: const Icon(
+                    Icons.calendar_today,
+                    color: Color(0xFFB0E4CC),
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Hari Ini', style: TextStyle(color: Colors.white.withValues(alpha: 0.50), fontSize: 12)),
+                    Text(
+                      'Hari Ini',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.50),
+                        fontSize: 12,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Row(
                       children: const [
-                        Icon(Icons.check_circle, color: Color(0xFFB0E4CC), size: 16),
+                        Icon(
+                          Icons.check_circle,
+                          color: Color(0xFFB0E4CC),
+                          size: 16,
+                        ),
                         SizedBox(width: 6),
-                        Text('Sudah', style: TextStyle(color: Color(0xFFB0E4CC), fontSize: 14, fontWeight: FontWeight.w600)),
+                        Text(
+                          'Sudah',
+                          style: TextStyle(
+                            color: Color(0xFFB0E4CC),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ],
                     ),
-                    Text('07:03', style: TextStyle(color: Colors.white.withValues(alpha: 0.30), fontSize: 10)),
+                    Text(
+                      '07:03',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.30),
+                        fontSize: 10,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -485,8 +596,21 @@ class DashboardScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Minggu ini', style: TextStyle(color: Colors.white.withValues(alpha: 0.40), fontSize: 12)),
-              const Text('6/7 hari', style: TextStyle(color: Color(0xB2B0E4CC), fontSize: 12, fontWeight: FontWeight.w500)),
+              Text(
+                'Minggu ini',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.40),
+                  fontSize: 12,
+                ),
+              ),
+              const Text(
+                '6/7 hari',
+                style: TextStyle(
+                  color: Color(0xB2B0E4CC),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -499,7 +623,9 @@ class DashboardScreen extends StatelessWidget {
                   height: 6,
                   margin: const EdgeInsets.symmetric(horizontal: 2),
                   decoration: BoxDecoration(
-                    color: isDone ? const Color(0xFF408A71) : Colors.white.withValues(alpha: 0.12),
+                    color: isDone
+                        ? const Color(0xFF408A71)
+                        : Colors.white.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
@@ -510,13 +636,18 @@ class DashboardScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
-                .map((day) => Expanded(
-                      child: Text(
-                        day,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.20), fontSize: 9),
+                .map(
+                  (day) => Expanded(
+                    child: Text(
+                      day,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.20),
+                        fontSize: 9,
                       ),
-                    ))
+                    ),
+                  ),
+                )
                 .toList(),
           ),
         ],
@@ -540,11 +671,19 @@ class DashboardScreen extends StatelessWidget {
             children: [
               Text(
                 'Badge Terkumpul',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.80), fontSize: 14, fontFamily: 'Poppins', fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.80),
+                  fontSize: 14,
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               Text(
                 'Wed, 8 Jan',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.30), fontSize: 12),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.30),
+                  fontSize: 12,
+                ),
               ),
             ],
           ),
@@ -571,14 +710,13 @@ class DashboardScreen extends StatelessWidget {
           decoration: const BoxDecoration(
             color: Color(0xFFFACC15),
             shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Color(0x66FBBF24),
-                blurRadius: 20,
-              ),
-            ],
+            boxShadow: [BoxShadow(color: Color(0x66FBBF24), blurRadius: 20)],
           ),
-          child: Icon(Icons.star, color: Colors.white.withValues(alpha: 0.9), size: 28),
+          child: Icon(
+            Icons.star,
+            color: Colors.white.withValues(alpha: 0.9),
+            size: 28,
+          ),
         ),
         const SizedBox(height: 8),
         SizedBox(
@@ -602,7 +740,9 @@ class DashboardScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
         color: const Color(0xF20A1614),
-        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.07))),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
+        ),
       ),
       child: SafeArea(
         child: Row(
@@ -623,7 +763,9 @@ class DashboardScreen extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          padding: isActive ? const EdgeInsets.symmetric(horizontal: 16, vertical: 8) : const EdgeInsets.all(8),
+          padding: isActive
+              ? const EdgeInsets.symmetric(horizontal: 16, vertical: 8)
+              : const EdgeInsets.all(8),
           decoration: isActive
               ? BoxDecoration(
                   color: const Color(0x59285A48),
@@ -633,14 +775,24 @@ class DashboardScreen extends StatelessWidget {
               : null,
           child: Row(
             children: [
-              Icon(icon, color: isActive ? const Color(0xFFB0E4CC) : Colors.white.withValues(alpha: 0.30), size: 20),
+              Icon(
+                icon,
+                color: isActive
+                    ? const Color(0xFFB0E4CC)
+                    : Colors.white.withValues(alpha: 0.30),
+                size: 20,
+              ),
               if (isActive) ...[
                 const SizedBox(width: 8),
                 Text(
                   label,
-                  style: const TextStyle(color: Color(0xFFB0E4CC), fontSize: 12, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    color: Color(0xFFB0E4CC),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ]
+              ],
             ],
           ),
         ),
@@ -648,9 +800,13 @@ class DashboardScreen extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.30), fontSize: 10, fontWeight: FontWeight.w500),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.30),
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        ]
+        ],
       ],
     );
   }
