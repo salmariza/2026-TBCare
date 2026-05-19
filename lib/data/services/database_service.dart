@@ -2,15 +2,18 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
 class DatabaseService {
+  static final DatabaseService instance = DatabaseService._init();
   static Database? _db;
 
-  static Future<Database> get database async {
+  DatabaseService._init();
+
+  Future<Database> get database async {
     if (_db != null) return _db!;
     _db = await initDB();
     return _db!;
   }
 
-  static Future<Database> initDB() async {
+  Future<Database> initDB() async {
     final path = join(await getDatabasesPath(), 'tbcare.db');
 
     return await openDatabase(
