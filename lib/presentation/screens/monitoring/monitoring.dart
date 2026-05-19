@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:tbcare_app/data/services/database_service.dart';
+import 'package:tbcare_app/data/services/session_service.dart';
 
 class MonitoringPage extends StatefulWidget {
   const MonitoringPage({super.key});
@@ -8,26 +10,170 @@ class MonitoringPage extends StatefulWidget {
 }
 
 class _MonitoringPageState extends State<MonitoringPage> {
-  bool? hasTakenMedicine = true;
+  bool? hasTakenMedicine = false;
+  bool _isSubmitting = false;
 
-  final Map<String, bool> symptoms = {
-    'Demam': true,
-    'Batuk berkepanjangan': false,
-    'Berat badan turun': false,
-    'Keringat malam': false,
-  };
+  List<Map<String, dynamic>> _medicines = [];
+  List<Map<String, dynamic>> _symptoms = [];
+  final Map<int, bool> _selectedSymptoms = {};
+  Map<String, dynamic>? _todayMonitoring;
 
-  final TextEditingController noteController = TextEditingController(
-    text: 'Aku hari ini ngerasa kalau sedikit panas, tapi aku udah minum obat tepat waktu',
-  );
+  final TextEditingController noteController = TextEditingController();
 
   int get selectedSymptomCount =>
-      symptoms.values.where((value) => value).length;
+      _selectedSymptoms.values.where((value) => value).length;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final userId = SessionService.instance.currentUserId;
+    if (userId == null) return;
+
+    final db = DatabaseService.instance;
+    final medicines = await db.getMedicines(userId);
+    final symptoms = await db.getAllSymptoms();
+    final today = _todayString();
+
+    Map<String, dynamic>? todayMonitoring;
+    for (final med in medicines) {
+      final mon = await db.getTodayMonitoring(med['id'] as int, today);
+      if (mon != null) {
+        todayMonitoring = mon;
+        break;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _medicines = medicines;
+        _symptoms = symptoms;
+        for (final s in symptoms) {
+          _selectedSymptoms[s['id']] = false;
+        }
+        _todayMonitoring = todayMonitoring;
+        if (todayMonitoring != null) {
+          hasTakenMedicine = todayMonitoring['status'] == 'taken';
+          noteController.text = todayMonitoring['note'] as String? ?? '';
+          _loadMonitoringSymptoms(todayMonitoring['id'] as int);
+        }
+      });
+    }
+  }
+
+  Future<void> _loadMonitoringSymptoms(int monitoringId) async {
+    final db = DatabaseService.instance;
+    final selected = await db.getSymptomsForMonitoring(monitoringId);
+    if (mounted) {
+      setState(() {
+        for (final s in selected) {
+          _selectedSymptoms[s['id']] = true;
+        }
+      });
+    }
+  }
+
+  String _todayString() {
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
+
+  String _formatDate(DateTime date) {
+    const days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+    ];
+    return '${days[date.weekday - 1]}, ${date.day} ${months[date.month - 1]} ${date.year}';
+  }
 
   void showInfo(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
+  }
+
+  String get _medicineDisplayText {
+    if (_medicines.isEmpty) return 'Belum ada obat terdaftar';
+    final names = _medicines.map((m) => m['name'] as String).toList();
+    final schedule = _medicines.first['schedule'] as String? ?? '07:00';
+    return '${names.join(' · ')} · Terjadwal $schedule';
+  }
+
+  Future<void> _submitMonitoring() async {
+    if (_isSubmitting) return;
+    final userId = SessionService.instance.currentUserId;
+    if (userId == null || _medicines.isEmpty) {
+      showInfo('Tidak ada data obat. Silakan lengkapi data perawatan terlebih dahulu.');
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final db = DatabaseService.instance;
+      final today = _todayString();
+      final now = DateTime.now();
+      final status = hasTakenMedicine == true ? 'taken' : 'not_taken';
+      final medicineId = _medicines.first['id'] as int;
+
+      if (_todayMonitoring != null) {
+        await db.updateMonitoring(_todayMonitoring!['id'] as int, {
+          'status': status,
+          'taken_at': now.toIso8601String(),
+          'note': noteController.text,
+        });
+        await _resaveSymptoms(_todayMonitoring!['id'] as int);
+      } else {
+        final monId = await db.insertMonitoring({
+          'medicine_id': medicineId,
+          'status': status,
+          'date': today,
+          'taken_at': now.toIso8601String(),
+          'note': noteController.text,
+        });
+        await _saveNewSymptoms(monId);
+      }
+
+      await db.checkAndAwardBadges(userId);
+
+      if (mounted) {
+        showInfo('Rekaman hari ini berhasil dikirim.');
+        _loadData();
+      }
+    } catch (e) {
+      if (mounted) {
+        showInfo('Gagal menyimpan: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _resaveSymptoms(int monitoringId) async {
+    final db = DatabaseService.instance;
+    await db.database.then((d) => d.delete(
+      'monitoring_symptom',
+      where: 'monitoring_id = ?',
+      whereArgs: [monitoringId],
+    ));
+    for (final entry in _selectedSymptoms.entries) {
+      if (entry.value) {
+        await db.insertMonitoringSymptom(monitoringId, entry.key);
+      }
+    }
+  }
+
+  Future<void> _saveNewSymptoms(int monitoringId) async {
+    final db = DatabaseService.instance;
+    for (final entry in _selectedSymptoms.entries) {
+      if (entry.value) {
+        await db.insertMonitoringSymptom(monitoringId, entry.key);
+      }
+    }
   }
 
   @override
@@ -38,6 +184,8 @@ class _MonitoringPageState extends State<MonitoringPage> {
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+
     return Scaffold(
       backgroundColor: const Color(0xFF091413),
       bottomNavigationBar: _bottomNav(),
@@ -59,7 +207,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _header(),
+                _header(now),
                 const SizedBox(height: 24),
                 _sectionTitle(
                   icon: Icons.checklist_rounded,
@@ -73,7 +221,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
                 const SizedBox(height: 24),
                 _noteSection(),
                 const SizedBox(height: 24),
-                _submitButton(),
+                _submitButton(now),
                 const SizedBox(height: 12),
                 _privacyText(),
               ],
@@ -84,7 +232,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
     );
   }
 
-  Widget _header() {
+  Widget _header(DateTime now) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -122,20 +270,20 @@ class _MonitoringPageState extends State<MonitoringPage> {
             border: Border.all(color: const Color(0x26B0E4CC)),
             borderRadius: BorderRadius.circular(16),
           ),
-          child: const Column(
+          child: Column(
             children: [
               Text(
-                'Rab',
-                style: TextStyle(
+                ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'][now.weekday - 1],
+                style: const TextStyle(
                   color: Color(0xFFB0E4CC),
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              SizedBox(height: 2),
+              const SizedBox(height: 2),
               Text(
-                '8',
-                style: TextStyle(
+                '${now.day}',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
                   fontFamily: 'Poppins',
@@ -144,8 +292,9 @@ class _MonitoringPageState extends State<MonitoringPage> {
               ),
               SizedBox(height: 2),
               Text(
-                'Jan 2025',
-                style: TextStyle(
+                ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+                 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'][now.month - 1] + ' ${now.year}',
+                style: const TextStyle(
                   color: Colors.white38,
                   fontSize: 10,
                 ),
@@ -223,11 +372,11 @@ class _MonitoringPageState extends State<MonitoringPage> {
             children: [
               _iconBox(Icons.medication_rounded),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'Apakah kamu sudah minum obat hari ini?',
                       style: TextStyle(
                         color: Colors.white,
@@ -235,10 +384,10 @@ class _MonitoringPageState extends State<MonitoringPage> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
-                      'Rifampicin · Isoniazid · Terjadwal 07:00',
-                      style: TextStyle(
+                      _medicineDisplayText,
+                      style: const TextStyle(
                         color: Colors.white38,
                         fontSize: 12,
                         fontWeight: FontWeight.w300,
@@ -259,7 +408,6 @@ class _MonitoringPageState extends State<MonitoringPage> {
                   selected: hasTakenMedicine == true,
                   onTap: () {
                     setState(() => hasTakenMedicine = true);
-                    showInfo('Obat ditandai sudah diminum.');
                   },
                 ),
               ),
@@ -271,19 +419,31 @@ class _MonitoringPageState extends State<MonitoringPage> {
                   selected: hasTakenMedicine == false,
                   onTap: () {
                     setState(() => hasTakenMedicine = false);
-                    showInfo('Obat ditandai belum diminum.');
                   },
                 ),
               ),
             ],
           ),
-          if (hasTakenMedicine == true) ...[
+          if (_todayMonitoring != null && hasTakenMedicine == true) ...[
             const SizedBox(height: 14),
-            _infoPill('Tandai sudah diminum pada 07.03'),
+            _infoPill(
+              _todayMonitoring!['taken_at'] != null
+                  ? 'Tandai sudah diminum pada ${_formatTime(_todayMonitoring!['taken_at'] as String)}'
+                  : 'Sudah ditandai diminum hari ini',
+            ),
           ],
         ],
       ),
     );
+  }
+
+  String _formatTime(String isoString) {
+    try {
+      final dt = DateTime.parse(isoString);
+      return '${dt.hour.toString().padLeft(2, '0')}.${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return '07:00';
+    }
   }
 
   Widget _choiceButton({
@@ -356,30 +516,25 @@ class _MonitoringPageState extends State<MonitoringPage> {
             border: Border.all(color: Colors.white10),
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Column(
-            children: [
-              _symptomTile(
-                title: 'Demam',
-                subtitle: 'Suhu tubuh di atas 38°C',
-                icon: Icons.thermostat_rounded,
-              ),
-              _symptomTile(
-                title: 'Batuk berkepanjangan',
-                subtitle: 'Batuk lebih dari 2 minggu',
-                icon: Icons.air_rounded,
-              ),
-              _symptomTile(
-                title: 'Berat badan turun',
-                subtitle: 'Berat badan turun tanpa sebab',
-                icon: Icons.monitor_weight_rounded,
-              ),
-              _symptomTile(
-                title: 'Keringat malam',
-                subtitle: 'Keringat berlebih di malam hari',
-                icon: Icons.nightlight_round,
-              ),
-            ],
-          ),
+          child: _symptoms.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text(
+                    'Memuat data gejala...',
+                    style: TextStyle(color: Colors.white38, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              : Column(
+                  children: _symptoms.map((s) {
+                    return _symptomTile(
+                      title: s['name'] as String,
+                      subtitle: s['description'] as String? ?? '',
+                      icon: _symptomIcon(s['name'] as String),
+                      symptomId: s['id'] as int,
+                    );
+                  }).toList(),
+                ),
         ),
         const SizedBox(height: 10),
         _warningBox(),
@@ -387,19 +542,37 @@ class _MonitoringPageState extends State<MonitoringPage> {
     );
   }
 
+  IconData _symptomIcon(String name) {
+    switch (name) {
+      case 'Demam':
+        return Icons.thermostat_rounded;
+      case 'Batuk berkepanjangan':
+        return Icons.air_rounded;
+      case 'Berat badan turun':
+        return Icons.monitor_weight_rounded;
+      case 'Keringat malam':
+        return Icons.nightlight_round;
+      case 'Sesak napas':
+        return Icons.waves_rounded;
+      default:
+        return Icons.sick_rounded;
+    }
+  }
+
   Widget _symptomTile({
     required String title,
     required String subtitle,
     required IconData icon,
+    required int symptomId,
   }) {
-    final bool selected = symptoms[title] ?? false;
+    final bool selected = _selectedSymptoms[symptomId] ?? false;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () {
-          setState(() => symptoms[title] = !selected);
+          setState(() => _selectedSymptoms[symptomId] = !selected);
         },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -446,7 +619,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
                 inactiveThumbColor: Colors.white38,
                 inactiveTrackColor: Colors.white12,
                 onChanged: (value) {
-                  setState(() => symptoms[title] = value);
+                  setState(() => _selectedSymptoms[symptomId] = value);
                 },
               ),
             ],
@@ -506,41 +679,48 @@ class _MonitoringPageState extends State<MonitoringPage> {
     );
   }
 
-  Widget _submitButton() {
+  Widget _submitButton(DateTime now) {
     return InkWell(
       borderRadius: BorderRadius.circular(16),
-      onTap: () {
-        showInfo('Rekaman hari ini berhasil dikirim.');
-      },
+      onTap: _isSubmitting ? null : _submitMonitoring,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment(0.20, -1.06),
-            end: Alignment(0.80, 2.06),
-            colors: [Color(0xFF285A48), Color(0xFF3A7A60)],
-          ),
+          gradient: _isSubmitting
+              ? const LinearGradient(
+                  colors: [Color(0xFF3A4A40), Color(0xFF3A5A50)],
+                )
+              : const LinearGradient(
+                  begin: Alignment(0.20, -1.06),
+                  end: Alignment(0.80, 2.06),
+                  colors: [Color(0xFF285A48), Color(0xFF3A7A60)],
+                ),
           borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x7F285A48),
-              blurRadius: 36,
-              offset: Offset(0, 12),
-            ),
-          ],
+          boxShadow: _isSubmitting
+              ? null
+              : const [
+                  BoxShadow(
+                    color: Color(0x7F285A48),
+                    blurRadius: 36,
+                    offset: Offset(0, 12),
+                  ),
+                ],
         ),
-        child: const Row(
+        child: Row(
           children: [
-            Icon(Icons.send_rounded, color: Colors.white),
-            SizedBox(width: 12),
+            Icon(
+              _isSubmitting ? Icons.hourglass_top_rounded : Icons.send_rounded,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Kirim rekaman hari ini',
-                    style: TextStyle(
+                    _isSubmitting ? 'Menyimpan...' : 'Kirim rekaman hari ini',
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -548,8 +728,8 @@ class _MonitoringPageState extends State<MonitoringPage> {
                   ),
                   SizedBox(height: 2),
                   Text(
-                    'Rab, 8 January 2025',
-                    style: TextStyle(
+                    _formatDate(now),
+                    style: const TextStyle(
                       color: Colors.white54,
                       fontSize: 12,
                       fontWeight: FontWeight.w300,
@@ -558,7 +738,10 @@ class _MonitoringPageState extends State<MonitoringPage> {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: Colors.white),
+            Icon(
+              _isSubmitting ? Icons.lock_rounded : Icons.chevron_right_rounded,
+              color: Colors.white,
+            ),
           ],
         ),
       ),
@@ -576,13 +759,11 @@ class _MonitoringPageState extends State<MonitoringPage> {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _navItem(Icons.home_rounded, 'Beranda', false, () {
-            showInfo('Beranda ditekan.');
+            Navigator.pushReplacementNamed(context, '/dashboard');
           }),
-          _navItem(Icons.fact_check_rounded, 'Pemantauan', true, () {
-            showInfo('Kamu sedang di halaman Pemantauan.');
-          }),
+          _navItem(Icons.fact_check_rounded, 'Pemantauan', true, () {}),
           _navItem(Icons.history_rounded, 'Riwayat', false, () {
-            showInfo('Riwayat ditekan.');
+            Navigator.pushReplacementNamed(context, '/history');
           }),
           _navItem(Icons.person_rounded, 'Profil', false, () {
             showInfo('Profil ditekan.');
