@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../data/services/database_service.dart';
-import '../dashboard/dashboard_screen.dart';
+import 'package:tbcare_app/data/services/database_service.dart';
+import 'package:tbcare_app/data/services/session_service.dart';
 
 class PatientSetupScreen extends StatefulWidget {
   const PatientSetupScreen({super.key});
@@ -10,10 +10,6 @@ class PatientSetupScreen extends StatefulWidget {
 }
 
 class _PatientSetupScreenState extends State<PatientSetupScreen> {
-  // =========================
-  // CONTROLLER
-  // =========================
-
   final TextEditingController nameController = TextEditingController();
   final TextEditingController ageController = TextEditingController();
   final TextEditingController medicineController = TextEditingController();
@@ -24,10 +20,16 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
   DateTime? endDate;
 
   bool notificationEnabled = true;
+  bool _isSaving = false;
 
-  // =========================
-  // DATE PICKER
-  // =========================
+  @override
+  void initState() {
+    super.initState();
+    final userName = SessionService.instance.currentUserName;
+    if (userName != null) {
+      nameController.text = userName;
+    }
+  }
 
   Future<void> pickStartDate() async {
     final picked = await showDatePicker(
@@ -36,120 +38,132 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
       firstDate: DateTime(2024),
       lastDate: DateTime(2030),
     );
-
     if (picked != null) {
-      setState(() {
-        startDate = picked;
-      });
+      setState(() => startDate = picked);
     }
   }
 
   Future<void> pickEndDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: DateTime.now().add(const Duration(days: 180)),
       firstDate: DateTime(2024),
       lastDate: DateTime(2030),
     );
-
     if (picked != null) {
-      setState(() {
-        endDate = picked;
-      });
+      setState(() => endDate = picked);
     }
   }
 
-  // =========================
-  // SAVE DATA
-  // =========================
-
   Future<void> savePatientData() async {
+    final userId = SessionService.instance.currentUserId;
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Session tidak ditemukan. Silakan login ulang.")),
+      );
+      return;
+    }
+
     if (nameController.text.isEmpty ||
         ageController.text.isEmpty ||
         medicineController.text.isEmpty ||
         startDate == null ||
         endDate == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Semua data wajib diisi")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Semua data wajib diisi")),
+      );
       return;
     }
 
+    setState(() => _isSaving = true);
+
     try {
-      final db = await DatabaseService.instance.database;
+      final db = DatabaseService.instance;
 
-      // =========================
-      // SAVE USER
-      // =========================
+      final totalDays = endDate!.difference(startDate!).inDays + 1;
+      final currentDay = DateTime.now().difference(startDate!).inDays + 1;
 
-      await db.insert('user', {
+      await db.updateUser(userId, {
         'name': nameController.text,
-        'email': '',
-        'password': '',
+        'age': int.tryParse(ageController.text) ?? 0,
+        'gender': selectedGender,
       });
 
-      // =========================
-      // SAVE MEDICINE
-      // =========================
-
-      await db.insert('medicine', {
-        'name': medicineController.text,
-        'dosage': '1 Tablet',
-        'schedule': '07:00',
+      await db.insertTreatmentPlan({
+        'user_id': userId,
+        'start_date':
+            '${startDate!.year}-${startDate!.month.toString().padLeft(2, '0')}-${startDate!.day.toString().padLeft(2, '0')}',
+        'end_date':
+            '${endDate!.year}-${endDate!.month.toString().padLeft(2, '0')}-${endDate!.day.toString().padLeft(2, '0')}',
+        'total_days': totalDays,
+        'current_day': currentDay,
+        'status': 'active',
+        'reminder_enabled': notificationEnabled ? 1 : 0,
       });
 
-      // =========================
-      // SAVE MONITORING
-      // =========================
+      final medicineNames = medicineController.text
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
 
-      await db.insert('monitoring', {
-        'medicine_id': 1,
-        'status': 'Belum Minum',
-        'date': DateTime.now().toString(),
-      });
+      if (medicineNames.isEmpty) {
+        medicineNames.add(medicineController.text.trim());
+      }
 
-      // =========================
-      // SUCCESS
-      // =========================
+      for (final name in medicineNames) {
+        await db.insertMedicine({
+          'user_id': userId,
+          'name': name,
+          'dosage': '1 Tablet',
+          'schedule': '07:00',
+          'treatment_phase': 'Intensive',
+          'frequency': 'daily',
+        });
+      }
 
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Data berhasil disimpan")));
+      SessionService.instance.setUser(
+        userId,
+        nameController.text,
+        SessionService.instance.currentUserEmail ?? '',
+      );
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const DashboardScreen()),
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Data berhasil disimpan")),
         );
+        Navigator.pushReplacementNamed(context, '/dashboard');
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
-  // =========================
-  // UI
-  // =========================
+  @override
+  void dispose() {
+    nameController.dispose();
+    ageController.dispose();
+    medicineController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF091413),
-
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
-
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 10),
-
-              // =========================
-              // HEADER
-              // =========================
               const Text(
                 "Patient Setup",
                 style: TextStyle(
@@ -158,9 +172,7 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-
               const SizedBox(height: 6),
-
               Text(
                 "Let's personalise your care plan",
                 style: TextStyle(
@@ -168,14 +180,9 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
                   fontSize: 14,
                 ),
               ),
-
               const SizedBox(height: 28),
 
-              // =========================
-              // PERSONAL INFO
-              // =========================
               buildSectionTitle("Informasi Pribadi"),
-
               const SizedBox(height: 16),
 
               buildInput(
@@ -183,7 +190,6 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
                 hint: "Nama Lengkap",
                 icon: Icons.person_outline,
               ),
-
               const SizedBox(height: 16),
 
               buildInput(
@@ -192,33 +198,23 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
                 icon: Icons.calendar_today_outlined,
                 keyboardType: TextInputType.number,
               ),
-
               const SizedBox(height: 16),
 
               const Text(
                 "Gender",
                 style: TextStyle(color: Colors.white70, fontSize: 14),
               ),
-
               const SizedBox(height: 10),
-
               Row(
                 children: [
                   Expanded(child: genderCard("Laki-laki")),
-
                   const SizedBox(width: 12),
-
                   Expanded(child: genderCard("Perempuan")),
                 ],
               ),
-
               const SizedBox(height: 28),
 
-              // =========================
-              // CARE INFO
-              // =========================
               buildSectionTitle("Informasi Perawatan"),
-
               const SizedBox(height: 16),
 
               buildDateCard(
@@ -228,7 +224,6 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
                     : "${startDate!.day}/${startDate!.month}/${startDate!.year}",
                 onTap: pickStartDate,
               ),
-
               const SizedBox(height: 16),
 
               buildDateCard(
@@ -238,7 +233,6 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
                     : "${endDate!.day}/${endDate!.month}/${endDate!.year}",
                 onTap: pickEndDate,
               ),
-
               const SizedBox(height: 16),
 
               buildInput(
@@ -246,7 +240,6 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
                 hint: "Nama Obat",
                 icon: Icons.medication_outlined,
               ),
-
               const SizedBox(height: 14),
 
               Wrap(
@@ -258,30 +251,22 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
                   medicineChip("Pyrazinamide"),
                 ],
               ),
-
               const SizedBox(height: 28),
 
-              // =========================
-              // NOTIFICATION
-              // =========================
               Container(
                 padding: const EdgeInsets.all(18),
-
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.04),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: Colors.white.withOpacity(0.08)),
                 ),
-
                 child: Row(
                   children: [
                     const Icon(
                       Icons.notifications_active_outlined,
                       color: Color(0xFFB0E4CC),
                     ),
-
                     const SizedBox(width: 14),
-
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -293,7 +278,6 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-
                           Text(
                             "Aktifkan notifikasi obat",
                             style: TextStyle(
@@ -304,51 +288,48 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
                         ],
                       ),
                     ),
-
                     Switch(
                       value: notificationEnabled,
                       activeColor: const Color(0xFFB0E4CC),
                       onChanged: (value) {
-                        setState(() {
-                          notificationEnabled = value;
-                        });
+                        setState(() => notificationEnabled = value);
                       },
                     ),
                   ],
                 ),
               ),
-
               const SizedBox(height: 30),
 
-              // =========================
-              // BUTTON
-              // =========================
               SizedBox(
                 width: double.infinity,
                 height: 56,
-
                 child: ElevatedButton(
-                  onPressed: savePatientData,
-
+                  onPressed: _isSaving ? null : savePatientData,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF285A48),
-
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
                     ),
                   ),
-
-                  child: const Text(
-                    "Simpan & Lanjut",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          "Simpan & Lanjut",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
                 ),
               ),
-
               const SizedBox(height: 30),
             ],
           ),
@@ -356,10 +337,6 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
       ),
     );
   }
-
-  // =========================
-  // COMPONENTS
-  // =========================
 
   Widget buildSectionTitle(String title) {
     return Text(
@@ -381,19 +358,13 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
-
       style: const TextStyle(color: Colors.white),
-
       decoration: InputDecoration(
         hintText: hint,
-
         hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
-
         prefixIcon: Icon(icon, color: Colors.white70),
-
         filled: true,
         fillColor: Colors.white.withOpacity(0.05),
-
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
           borderSide: BorderSide.none,
@@ -407,34 +378,26 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
 
     return GestureDetector(
       onTap: () {
-        setState(() {
-          selectedGender = gender;
-        });
+        setState(() => selectedGender = gender);
       },
-
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
-
         decoration: BoxDecoration(
           color: isSelected
               ? const Color(0x33285A48)
               : Colors.white.withOpacity(0.04),
-
           borderRadius: BorderRadius.circular(18),
-
           border: Border.all(
             color: isSelected
                 ? const Color(0xFFB0E4CC)
                 : Colors.white.withOpacity(0.08),
           ),
         ),
-
         child: Center(
           child: Text(
             gender,
             style: TextStyle(
               color: isSelected ? const Color(0xFFB0E4CC) : Colors.white70,
-
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -450,22 +413,17 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
   }) {
     return GestureDetector(
       onTap: onTap,
-
       child: Container(
         padding: const EdgeInsets.all(18),
-
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.05),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: Colors.white.withOpacity(0.08)),
         ),
-
         child: Row(
           children: [
             const Icon(Icons.calendar_month_outlined, color: Colors.white70),
-
             const SizedBox(width: 14),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -477,9 +435,7 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
                       fontSize: 12,
                     ),
                   ),
-
                   const SizedBox(height: 4),
-
                   Text(
                     value,
                     style: const TextStyle(
@@ -490,7 +446,6 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
                 ],
               ),
             ),
-
             const Icon(
               Icons.arrow_forward_ios,
               color: Colors.white38,
@@ -506,8 +461,8 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
     final medicines = medicineController.text
         .split(',')
         .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
         .toList();
-
     final isSelected = medicines.contains(text);
 
     return GestureDetector(
@@ -528,40 +483,31 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
           medicineController.text = currentMedicines.join(', ');
         });
       },
-
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(30),
-
           color: isSelected ? const Color(0x33285A48) : const Color(0x0FB0E4CC),
-
           border: Border.all(
             color: isSelected
                 ? const Color(0xFFB0E4CC)
                 : const Color(0x33B0E4CC),
           ),
         ),
-
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (isSelected) ...[
               const Icon(Icons.check, size: 14, color: Color(0xFFB0E4CC)),
-
               const SizedBox(width: 6),
             ],
-
             Text(
               text,
               style: TextStyle(
                 color: isSelected
                     ? const Color(0xFFB0E4CC)
                     : const Color(0xB2B0E4CC),
-
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
