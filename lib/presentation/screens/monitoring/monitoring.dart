@@ -766,7 +766,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
             Navigator.pushReplacementNamed(context, '/history');
           }),
           _navItem(Icons.person_rounded, 'Profil', false, () {
-            showInfo('Profil ditekan.');
+            Navigator.pushReplacementNamed(context, '/profile');
           }),
         ],
       ),

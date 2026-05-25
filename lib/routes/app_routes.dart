@@ -8,6 +8,7 @@ import 'package:tbcare_app/presentation/screens/monitoring/warning_monitoring.da
 import 'package:tbcare_app/presentation/screens/dashboard/dashboard_screen.dart';
 import 'package:tbcare_app/presentation/screens/history/riwayat_pengobatan.dart';
 import 'package:tbcare_app/presentation/screens/notification/notification.dart';
+import 'package:tbcare_app/presentation/screens/profile/profile_screen.dart';
 
 class AppRoutes {
   static const String welcome = '/welcome';
@@ -19,6 +20,7 @@ class AppRoutes {
   static const String history = '/history';
   static const String notification = '/notification';
   static const String warning = '/warning';
+  static const String profile = '/profile';
 
   static Map<String, WidgetBuilder> getRoutes() {
     return {
@@ -31,6 +33,7 @@ class AppRoutes {
       history: (context) => const HistoryPage(),
       notification: (context) => const NotificationPage(),
       warning: (context) => const WarningPage(),
+      profile: (context) => const ProfileScreen(),
     };
   }
 }
