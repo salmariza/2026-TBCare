@@ -800,9 +800,7 @@ class _HistoryPageState extends State<HistoryPage> {
             }),
             _buildNavItem(Icons.history_rounded, 'Riwayat', true, () {}),
             _buildNavItem(Icons.person_rounded, 'Profil', false, () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Profil ditekan.')),
-              );
+              Navigator.pushReplacementNamed(context, '/profile');
             }),
           ],
         ),

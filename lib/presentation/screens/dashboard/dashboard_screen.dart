@@ -1033,9 +1033,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Navigator.pushReplacementNamed(context, '/history');
             break;
           case 'Profil':
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Profil ditekan.')),
-            );
+            Navigator.pushReplacementNamed(context, '/profile');
             break;
         }
       },
