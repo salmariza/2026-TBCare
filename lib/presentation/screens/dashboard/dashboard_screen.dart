@@ -74,29 +74,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _checkMissedDoses(
       int userId, List<Map<String, dynamic>> medicines) async {
     final db = DatabaseService.instance;
-    for (final med in medicines) {
-      final yesterday = DateTime.now().subtract(const Duration(days: 1));
-      final yesterdayStr =
-          '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
-      final yesterdayMon =
-          await db.getTodayMonitoring(med['id'] as int, yesterdayStr);
-      if (yesterdayMon == null || yesterdayMon['status'] != 'taken') {
-        final existing = await db.getMissedDoseByDate(med['id'] as int, yesterdayStr);
-        if (existing == null) {
-          await db.insertMissedDose({
-            'medicine_id': med['id'],
-            'missed_date': yesterdayStr,
-            'resolved': 0,
-            'doctor_contacted': 0,
-            'note': '',
-          });
-          if (_treatmentPlan != null) {
-            await db.updateTreatmentPlan(_treatmentPlan!['id'] as int, {
-              'status': 'warning',
-            });
-          }
-        }
-      }
+
+    final hadMissedBefore = await db.hasUnresolvedMissedDoses(userId);
+    await db.checkAndRecordMissedDoses(userId);
+    final hasMissedNow = await db.hasUnresolvedMissedDoses(userId);
+
+    // Update treatment plan status if new missed doses appeared
+    if (!hadMissedBefore && hasMissedNow && _treatmentPlan != null) {
+      await db.updateTreatmentPlan(_treatmentPlan!['id'] as int, {
+        'status': 'warning',
+      });
     }
   }
 

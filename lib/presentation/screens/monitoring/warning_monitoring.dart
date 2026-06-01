@@ -12,6 +12,7 @@ class WarningPage extends StatefulWidget {
 class _WarningPageState extends State<WarningPage> {
   List<Map<String, dynamic>> _missedDoses = [];
   List<Map<String, dynamic>> _userBadges = [];
+  Map<String, dynamic>? _treatmentPlan;
   bool _isLoading = true;
 
   @override
@@ -31,11 +32,13 @@ class _WarningPageState extends State<WarningPage> {
       final db = DatabaseService.instance;
       final missedDoses = await db.getMissedDoses(userId);
       final badges = await db.getUserBadges(userId);
+      final plan = await db.getTreatmentPlan(userId);
 
       if (mounted) {
         setState(() {
           _missedDoses = missedDoses;
           _userBadges = badges;
+          _treatmentPlan = plan;
           _isLoading = false;
         });
       }
@@ -99,13 +102,21 @@ class _WarningPageState extends State<WarningPage> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'Sistem mendeteksi kamu terlewat dosis kemarin. Jangan panik. '
-                      'Pengobatan TBC harus hati-hati. Silakan hubungi Dokter atau '
-                      'Pusat Kesehatan Anda untuk instruksi selanjutnya. '
-                      'Pengobatan kamu tidak di-reset otomatis.',
+                    Text(
+                      _missedDoses.isEmpty
+                          ? 'Sistem mendeteksi kamu terlewat dosis. Jangan panik. '
+                              'Pengobatan TBC harus hati-hati. Silakan hubungi Dokter atau '
+                              'Pusat Kesehatan Anda untuk instruksi selanjutnya. '
+                              'Pengobatan kamu tidak di-reset otomatis.'
+                          : _missedDoses.length == 1
+                              ? 'Kamu terlewat dosis pada ${_formatMissedDate(_missedDoses.first['missed_date'] as String)}. '
+                                  'Jangan panik. Silakan hubungi Dokter atau '
+                                  'Pusat Kesehatan untuk instruksi selanjutnya.'
+                              : 'Kamu terlewat ${_missedDoses.length} dosis. Jangan panik. '
+                                  'Silakan hubungi Dokter atau Pusat Kesehatan '
+                                  'untuk instruksi selanjutnya.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Color(0xFFA8A8A8),
                         fontSize: 16,
                         fontFamily: 'Poppins',
@@ -129,22 +140,14 @@ class _WarningPageState extends State<WarningPage> {
                       text: 'Mulai dari hari pertama?',
                       color: const Color(0xFFF97316),
                       opacity: 0.90,
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Silakan hubungi dokter untuk opsi ini.'),
-                          ),
-                        );
-                      },
+                      onTap: _startFromDayOne,
                     ),
                     const SizedBox(height: 16),
                     _primaryButton(
                       text: 'Lanjut pengobatan terakhir',
                       color: const Color(0x7FF97316),
                       opacity: 0.70,
-                      onTap: () {
-                        Navigator.pushReplacementNamed(context, '/dashboard');
-                      },
+                      onTap: _continuePreviousTreatment,
                     ),
                     const SizedBox(height: 32),
                     _badgeCard(),
@@ -166,8 +169,11 @@ class _WarningPageState extends State<WarningPage> {
   Widget _closeButton(BuildContext context) {
     return InkWell(
       borderRadius: BorderRadius.circular(16),
-      onTap: () {
-        Navigator.pushReplacementNamed(context, '/dashboard');
+      onTap: () async {
+        await _resolveMissedDoses();
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/dashboard');
+        }
       },
       child: Container(
         width: 44,
@@ -267,20 +273,85 @@ class _WarningPageState extends State<WarningPage> {
     );
   }
 
+  Future<void> _resolveMissedDoses() async {
+    final userId = SessionService.instance.currentUserId;
+    if (userId == null) return;
+
+    final db = DatabaseService.instance;
+    await db.resolveAllMissedDoses(userId);
+
+    // Restore treatment plan status to active
+    if (_treatmentPlan != null) {
+      await db.updateTreatmentPlan(_treatmentPlan!['id'] as int, {
+        'status': 'active',
+      });
+    }
+  }
+
+  Future<void> _startFromDayOne() async {
+    await _resolveMissedDoses();
+
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, '/monitoring');
+    }
+  }
+
+  Future<void> _continuePreviousTreatment() async {
+    await _resolveMissedDoses();
+
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, '/dashboard');
+    }
+  }
+
+  Future<void> _contactDoctor() async {
+    final db = DatabaseService.instance;
+
+    try {
+      for (final dose in _missedDoses) {
+        await db.updateMissedDose(dose['id'] as int, {
+          'doctor_contacted': 1,
+        });
+      }
+
+      // Reload to reflect changes
+      await _loadData();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Dokter telah dihubungi. Catatan tersimpan.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal: $e')),
+        );
+      }
+    }
+  }
+
   Widget _contactDoctorButton(BuildContext context) {
+    final allContacted = _missedDoses.isNotEmpty &&
+        _missedDoses.every((d) => d['doctor_contacted'] == 1);
+
     return InkWell(
       borderRadius: BorderRadius.circular(30),
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Membuka kontak dokter...')),
-        );
-      },
+      onTap: allContacted ? null : _contactDoctor,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         decoration: BoxDecoration(
-          color: const Color(0x4CCA8A04),
-          border: Border.all(color: const Color(0xFFCA8A04)),
+          color: allContacted
+              ? const Color(0x1E4ADE80)
+              : const Color(0x4CCA8A04),
+          border: Border.all(
+            color: allContacted
+                ? const Color(0xFF4ADE80)
+                : const Color(0xFFCA8A04),
+          ),
           borderRadius: BorderRadius.circular(30),
           boxShadow: const [
             BoxShadow(
@@ -295,21 +366,29 @@ class _WarningPageState extends State<WarningPage> {
             ),
           ],
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.local_hospital_rounded,
-              color: Color(0xFFFFE26E),
+              allContacted
+                  ? Icons.check_circle_outline
+                  : Icons.local_hospital_rounded,
+              color: allContacted
+                  ? const Color(0xFF4ADE80)
+                  : const Color(0xFFFFE26E),
               size: 26,
             ),
-            SizedBox(width: 16),
+            const SizedBox(width: 16),
             Flexible(
               child: Text(
-                'Hubungi Dokter Sekarang',
+                allContacted
+                    ? 'Dokter Telah Dihubungi'
+                    : 'Hubungi Dokter Sekarang',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Color(0xFFFFE26E),
+                  color: allContacted
+                      ? const Color(0xFF4ADE80)
+                      : const Color(0xFFFFE26E),
                   fontSize: 18,
                   fontFamily: 'Poppins',
                   fontWeight: FontWeight.w400,

@@ -36,29 +36,108 @@ class _HistoryPageState extends State<HistoryPage> {
       final db = DatabaseService.instance;
       final history = await db.getMonitoringHistory(userId);
       final streak = await db.calculateStreak(userId);
+      final plan = await db.getTreatmentPlan(userId);
+      final medicines = await db.getMedicines(userId);
 
-      int taken = 0;
+      // Collect all dates that have monitoring records
+      final monitoredDates = <String>{};
       final enriched = <Map<String, dynamic>>[];
+
       for (final item in history) {
+        final status = item['status'] as String? ?? '';
+        monitoredDates.add(item['date'] as String);
+
+        // Determine display status
+        String displayStatus;
+        if (status == 'taken') {
+          displayStatus = 'on_time';
+        } else if (status == 'taken_late') {
+          displayStatus = 'late';
+        } else {
+          displayStatus = 'missed';
+        }
+
+        // Load symptoms for this entry
         final symptoms =
             await db.getSymptomsForMonitoring(item['id'] as int);
-        final missed = item['status'] != 'taken';
-        if (!missed) taken++;
-
         final symptomNames =
             symptoms.map((s) => s['name'] as String).toList();
-        if (symptomNames.isEmpty) {
-          symptomNames.add('Tidak Ada Gejala');
-        }
 
         enriched.add({
           ...item,
           'symptoms': symptomNames,
-          'missed': missed,
+          'display_status': displayStatus,
+          'is_missed_day': false,
         });
       }
 
-      final rate = history.isEmpty ? 0.0 : (taken / history.length * 100);
+      // Find missed days (days with NO monitoring record)
+      if (plan != null && medicines.isNotEmpty) {
+        final startStr = plan['start_date'] as String;
+        final startDate = DateTime.tryParse(startStr);
+        if (startDate != null) {
+          final now = DateTime.now();
+
+          // Walk from start_date to yesterday
+          for (var d = startDate;
+              d.isBefore(now);
+              d = d.add(const Duration(days: 1))) {
+            final dateStr =
+                '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+            // Skip if monitoring already exists for this date
+            if (monitoredDates.contains(dateStr)) continue;
+            // Skip today (not yet missed)
+            if (dateStr ==
+                '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}') {
+              continue;
+            }
+
+            // Check if 24h+ have passed since the schedule
+            final scheduleStr =
+                medicines.first['schedule'] as String? ?? '07:00';
+            final parts = scheduleStr.split(':');
+            final scheduleHour = int.tryParse(parts[0]) ?? 7;
+            final scheduleMinute =
+                int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;
+            final scheduledDate = DateTime(
+                d.year, d.month, d.day, scheduleHour, scheduleMinute);
+
+            if (now.isAfter(scheduledDate.add(const Duration(hours: 24)))) {
+              enriched.add({
+                'date': dateStr,
+                'status': 'missed',
+                'display_status': 'missed',
+                'medicine_name':
+                    medicines.map((m) => m['name']).join(', '),
+                'taken_at': null,
+                'note': null,
+                'symptoms': <String>[],
+                'is_missed_day': true,
+              });
+            }
+          }
+        }
+      }
+
+      // Sort by date descending
+      enriched.sort((a, b) {
+        final aDate = a['date'] as String;
+        final bDate = b['date'] as String;
+        return bDate.compareTo(aDate);
+      });
+
+      // Count taken doses (on_time + late both count)
+      int taken = 0;
+      for (final item in enriched) {
+        if (item['display_status'] == 'on_time' ||
+            item['display_status'] == 'late') {
+          taken++;
+        }
+      }
+
+      final totalDays = enriched.length;
+      final rate = totalDays == 0 ? 0.0 : (taken / totalDays * 100);
 
       if (mounted) {
         setState(() {
@@ -79,15 +158,18 @@ class _HistoryPageState extends State<HistoryPage> {
     if (selectedFilter == 'Semua') {
       _filteredHistory = List.from(_allHistory);
     } else if (selectedFilter == 'Sudah') {
-      _filteredHistory =
-          _allHistory.where((item) => item['missed'] == false).toList();
+      _filteredHistory = _allHistory.where((item) {
+        final status = item['display_status'] as String;
+        return status == 'on_time' || status == 'late';
+      }).toList();
     } else if (selectedFilter == 'Terlewat') {
-      _filteredHistory =
-          _allHistory.where((item) => item['missed'] == true).toList();
+      _filteredHistory = _allHistory
+          .where((item) => item['display_status'] == 'missed')
+          .toList();
     } else if (selectedFilter == 'Gejala') {
       _filteredHistory = _allHistory.where((item) {
-        final symptoms = item['symptoms'] as List<String>;
-        return !symptoms.contains('Tidak Ada Gejala');
+        final symptoms = item['symptoms'] as List;
+        return symptoms.isNotEmpty;
       }).toList();
     }
   }
@@ -97,7 +179,9 @@ class _HistoryPageState extends State<HistoryPage> {
       final parts = dateStr.split('-');
       final date = DateTime(
           int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
-      const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+      const days = [
+        'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'
+      ];
       const months = [
         'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
         'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
@@ -112,7 +196,8 @@ class _HistoryPageState extends State<HistoryPage> {
     if (takenAt == null) return dateStr;
     try {
       final dt = DateTime.parse(takenAt);
-      final time = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+      final time =
+          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
       final diff = DateTime.now().difference(dt);
       if (diff.inDays == 0) return '$time · Today';
       if (diff.inDays == 1) return '$time · Kemarin';
@@ -236,9 +321,9 @@ class _HistoryPageState extends State<HistoryPage> {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                Colors.white.withOpacity(0),
-                Colors.white.withOpacity(0.07),
-                Colors.white.withOpacity(0),
+                Colors.white.withValues(alpha: 0),
+                Colors.white.withValues(alpha: 0.07),
+                Colors.white.withValues(alpha: 0),
               ],
             ),
           ),
@@ -327,7 +412,7 @@ class _HistoryPageState extends State<HistoryPage> {
     return Container(
       width: 1,
       height: 48,
-      color: Colors.white.withOpacity(0.07),
+      color: Colors.white.withValues(alpha: 0.07),
     );
   }
 
@@ -356,11 +441,11 @@ class _HistoryPageState extends State<HistoryPage> {
                 decoration: BoxDecoration(
                   color: selected
                       ? const Color(0x59285A48)
-                      : Colors.white.withOpacity(0.05),
+                      : Colors.white.withValues(alpha: 0.05),
                   border: Border.all(
                     color: selected
                         ? const Color(0x3FB0E4CC)
-                        : Colors.white.withOpacity(0.08),
+                        : Colors.white.withValues(alpha: 0.08),
                   ),
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -369,7 +454,7 @@ class _HistoryPageState extends State<HistoryPage> {
                   style: TextStyle(
                     color: selected
                         ? const Color(0xFFB0E4CC)
-                        : Colors.white.withOpacity(0.40),
+                        : Colors.white.withValues(alpha: 0.40),
                     fontSize: 12,
                     fontFamily: 'Inter',
                     fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
@@ -411,9 +496,9 @@ class _HistoryPageState extends State<HistoryPage> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Colors.white.withOpacity(0),
-                  Colors.white.withOpacity(0.07),
-                  Colors.white.withOpacity(0),
+                  Colors.white.withValues(alpha: 0),
+                  Colors.white.withValues(alpha: 0.07),
+                  Colors.white.withValues(alpha: 0),
                 ],
               ),
             ),
@@ -453,8 +538,134 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
+  // ─── COLOR HELPERS ─────────────────────────────────────
+
+  List<Color> _cardGradient(String status) {
+    switch (status) {
+      case 'late':
+        return [const Color(0x2D7A5A20), const Color(0x14998040)];
+      case 'missed':
+        return [const Color(0x2D641E1E), const Color(0x14501414)];
+      default: // on_time
+        return [const Color(0x2D285A48), const Color(0x14408A71)];
+    }
+  }
+
+  Color _cardBorderColor(String status) {
+    switch (status) {
+      case 'late':
+        return const Color(0x23FFB464);
+      case 'missed':
+        return const Color(0x1EFF6E6E);
+      default:
+        return const Color(0x23B0E4CC);
+    }
+  }
+
+  List<Color> _iconGradient(String status) {
+    switch (status) {
+      case 'late':
+        return [const Color(0xFF7A5A20), const Color(0xFFB09040)];
+      case 'missed':
+        return [const Color(0xFF3A1A1A), const Color(0xFF6B2C2C)];
+      default:
+        return [const Color(0xFF285A48), const Color(0xFF408A71)];
+    }
+  }
+
+  Color _iconBorderColor(String status) {
+    switch (status) {
+      case 'late':
+        return const Color(0xFFFFB464);
+      case 'missed':
+        return const Color(0x99FF6E6E);
+      default:
+        return const Color(0xFFB0E4CC);
+    }
+  }
+
+  Color _iconGlowColor(String status) {
+    switch (status) {
+      case 'late':
+        return const Color(0x33FFB464);
+      case 'missed':
+        return const Color(0x33FF5050);
+      default:
+        return const Color(0x59B0E4CC);
+    }
+  }
+
+  IconData _statusIcon(String status) {
+    switch (status) {
+      case 'late':
+        return Icons.access_time_rounded;
+      case 'missed':
+        return Icons.close_rounded;
+      default:
+        return Icons.check_rounded;
+    }
+  }
+
+  Color _statusIconColor(String status) {
+    switch (status) {
+      case 'late':
+        return const Color(0xFFFFB464);
+      case 'missed':
+        return const Color(0xFFFF6E6E);
+      default:
+        return const Color(0xFFB0E4CC);
+    }
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'late':
+        return 'Terlambat';
+      case 'missed':
+        return 'Terlewat';
+      default:
+        return 'Tepat Waktu';
+    }
+  }
+
+  Color _statusBadgeColor(String status) {
+    switch (status) {
+      case 'late':
+        return const Color(0xFFFFB464);
+      case 'missed':
+        return const Color(0xFFF87171);
+      default:
+        return const Color(0xFFB0E4CC);
+    }
+  }
+
+  Color _statusBadgeBg(String status) {
+    switch (status) {
+      case 'late':
+        return const Color(0x19FFB464);
+      case 'missed':
+        return const Color(0x19FF6E6E);
+      default:
+        return const Color(0x1EB0E4CC);
+    }
+  }
+
+  Color _statusBadgeBorder(String status) {
+    switch (status) {
+      case 'late':
+        return const Color(0x33FFB464);
+      case 'missed':
+        return const Color(0x33FF6E6E);
+      default:
+        return const Color(0x3FB0E4CC);
+    }
+  }
+
+  // ─── HISTORY ITEM ───────────────────────────────────────
+
   Widget _historyItem(Map<String, dynamic> item) {
-    final bool missed = item['missed'] as bool;
+    final status = item['display_status'] as String;
+    final isMissedDay = item['is_missed_day'] == true;
     final List<String> symptoms =
         (item['symptoms'] as List?)?.cast<String>() ?? [];
 
@@ -463,7 +674,7 @@ class _HistoryPageState extends State<HistoryPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _timelineIcon(missed: missed),
+          _timelineIcon(status: status),
           const SizedBox(width: 16),
           Expanded(
             child: Container(
@@ -472,31 +683,19 @@ class _HistoryPageState extends State<HistoryPage> {
                 gradient: LinearGradient(
                   begin: const Alignment(0.04, -0.04),
                   end: const Alignment(0.96, 1.04),
-                  colors: missed
-                      ? const [
-                          Color(0x2D641E1E),
-                          Color(0x14501414),
-                        ]
-                      : const [
-                          Color(0x2D285A48),
-                          Color(0x14408A71),
-                        ],
+                  colors: _cardGradient(status),
                 ),
-                border: Border.all(
-                  color: missed
-                      ? const Color(0x1EFF6E6E)
-                      : const Color(0x23B0E4CC),
-                ),
+                border: Border.all(color: _cardBorderColor(status)),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _historyHeader(item),
+                  _historyHeader(item, status: status),
                   const SizedBox(height: 10),
                   Container(
                     height: 1,
-                    color: Colors.white.withOpacity(0.05),
+                    color: Colors.white.withValues(alpha: 0.05),
                   ),
                   const SizedBox(height: 10),
                   const Text(
@@ -510,22 +709,33 @@ class _HistoryPageState extends State<HistoryPage> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: symptoms.map((symptom) {
-                      return _symptomChip(
-                        label: symptom,
-                        missed: missed,
-                      );
-                    }).toList(),
-                  ),
+                  if (symptoms.isEmpty)
+                    const Text(
+                      'Tidak ada gejala tercatat',
+                      style: TextStyle(
+                        color: Colors.white24,
+                        fontSize: 10,
+                        fontFamily: 'Inter',
+                        fontStyle: FontStyle.italic,
+                      ),
+                    )
+                  else
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: symptoms.map((symptom) {
+                        return _symptomChip(
+                          label: symptom,
+                          status: status,
+                        );
+                      }).toList(),
+                    ),
                   if (item['note'] != null &&
                       (item['note'] as String).isNotEmpty) ...[
                     const SizedBox(height: 10),
-                    _noteBox(item['note'] as String, missed: missed),
+                    _noteBox(item['note'] as String, status: status),
                   ],
-                  if (missed) ...[
+                  if (isMissedDay) ...[
                     const SizedBox(height: 10),
                     _doctorReminder(),
                   ],
@@ -538,9 +748,7 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _historyHeader(Map<String, dynamic> item) {
-    final bool missed = item['missed'] as bool;
-
+  Widget _historyHeader(Map<String, dynamic> item, {required String status}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -559,7 +767,8 @@ class _HistoryPageState extends State<HistoryPage> {
               ),
               const SizedBox(height: 2),
               Text(
-                _formatTimeAgo(item['taken_at'] as String?, item['date'] as String),
+                _formatTimeAgo(
+                    item['taken_at'] as String?, item['date'] as String),
                 style: const TextStyle(
                   color: Colors.white38,
                   fontSize: 10,
@@ -571,8 +780,8 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
         ),
         _statusBadge(
-          text: missed ? 'Terlewat' : 'Sudah',
-          missed: missed,
+          text: _statusLabel(status),
+          status: status,
         ),
       ],
     );
@@ -580,29 +789,27 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Widget _statusBadge({
     required String text,
-    required bool missed,
+    required String status,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: missed ? const Color(0x19FF6E6E) : const Color(0x1EB0E4CC),
-        border: Border.all(
-          color: missed ? const Color(0x33FF6E6E) : const Color(0x3FB0E4CC),
-        ),
+        color: _statusBadgeBg(status),
+        border: Border.all(color: _statusBadgeBorder(status)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
           Icon(
-            missed ? Icons.close_rounded : Icons.check_rounded,
+            _statusIcon(status),
             size: 12,
-            color: missed ? const Color(0xFFF87171) : const Color(0xFFB0E4CC),
+            color: _statusBadgeColor(status),
           ),
           const SizedBox(width: 6),
           Text(
             text,
             style: TextStyle(
-              color: missed ? const Color(0xFFF87171) : const Color(0xFFB0E4CC),
+              color: _statusBadgeColor(status),
               fontSize: 12,
               fontFamily: 'Inter',
               fontWeight: FontWeight.w600,
@@ -615,24 +822,28 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Widget _symptomChip({
     required String label,
-    required bool missed,
+    required String status,
   }) {
     final bool noSymptom = label == 'Tidak Ada Gejala';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: missed
+        color: status == 'missed'
             ? const Color(0x14FF6E6E)
-            : noSymptom
-                ? Colors.white.withOpacity(0.05)
-                : const Color(0x38285A48),
+            : status == 'late'
+                ? const Color(0x14FFB464)
+                : noSymptom
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : const Color(0x38285A48),
         border: Border.all(
-          color: missed
+          color: status == 'missed'
               ? const Color(0x26FF6E6E)
-              : noSymptom
-                  ? Colors.white.withOpacity(0.08)
-                  : const Color(0x33B0E4CC),
+              : status == 'late'
+                  ? const Color(0x26FFB464)
+                  : noSymptom
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : const Color(0x33B0E4CC),
         ),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -642,21 +853,25 @@ class _HistoryPageState extends State<HistoryPage> {
           Icon(
             noSymptom ? Icons.check_circle_outline : Icons.sick_rounded,
             size: 10,
-            color: missed
+            color: status == 'missed'
                 ? const Color(0xCCF87171)
-                : noSymptom
-                    ? Colors.white38
-                    : const Color(0xFFB0E4CC),
+                : status == 'late'
+                    ? const Color(0xCCFFB464)
+                    : noSymptom
+                        ? Colors.white38
+                        : const Color(0xFFB0E4CC),
           ),
           const SizedBox(width: 6),
           Text(
             label,
             style: TextStyle(
-              color: missed
+              color: status == 'missed'
                   ? const Color(0xCCF87171)
-                  : noSymptom
-                      ? Colors.white38
-                      : const Color(0xFFB0E4CC),
+                  : status == 'late'
+                      ? const Color(0xCCFFB464)
+                      : noSymptom
+                          ? Colors.white38
+                          : const Color(0xFFB0E4CC),
               fontSize: 10,
               fontFamily: 'Inter',
               fontWeight: FontWeight.w500,
@@ -667,25 +882,33 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _noteBox(String note, {required bool missed}) {
+  Widget _noteBox(String note, {required String status}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: missed
+        color: status == 'missed'
             ? const Color(0x0AFF5050)
-            : Colors.white.withOpacity(0.03),
+            : status == 'late'
+                ? const Color(0x0AFFB464)
+                : Colors.white.withValues(alpha: 0.03),
         border: Border.all(
-          color: missed
+          color: status == 'missed'
               ? const Color(0x14FF5050)
-              : Colors.white.withOpacity(0.05),
+              : status == 'late'
+                  ? const Color(0x14FFB464)
+                  : Colors.white.withValues(alpha: 0.05),
         ),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
         note,
         style: TextStyle(
-          color: missed ? const Color(0x66FCA5A5) : Colors.white38,
+          color: status == 'missed'
+              ? const Color(0x66FCA5A5)
+              : status == 'late'
+                  ? const Color(0x66FFB464)
+                  : Colors.white38,
           fontSize: 10,
           fontStyle: FontStyle.italic,
           fontFamily: 'Inter',
@@ -727,37 +950,21 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  Widget _timelineIcon({required bool missed}) {
+  Widget _timelineIcon({required String status}) {
     return Container(
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: missed
-              ? const [
-                  Color(0xFF3A1A1A),
-                  Color(0xFF6B2C2C),
-                ]
-              : const [
-                  Color(0xFF285A48),
-                  Color(0xFF408A71),
-                ],
-        ),
-        border: Border.all(
-          width: 2,
-          color: missed ? const Color(0x99FF6E6E) : const Color(0xFFB0E4CC),
-        ),
+        gradient: LinearGradient(colors: _iconGradient(status)),
+        border: Border.all(width: 2, color: _iconBorderColor(status)),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(
-            color: missed ? const Color(0x33FF5050) : const Color(0x59B0E4CC),
-            blurRadius: 12,
-          ),
+          BoxShadow(color: _iconGlowColor(status), blurRadius: 12),
         ],
       ),
       child: Icon(
-        missed ? Icons.close_rounded : Icons.check_rounded,
-        color: missed ? const Color(0xFFFF6E6E) : const Color(0xFFB0E4CC),
+        _statusIcon(status),
+        color: _statusIconColor(status),
         size: 20,
       ),
     );
@@ -785,7 +992,7 @@ class _HistoryPageState extends State<HistoryPage> {
       decoration: BoxDecoration(
         color: const Color(0xF20A1614),
         border: Border(
-          top: BorderSide(color: Colors.white.withOpacity(0.07)),
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
         ),
       ),
       child: SafeArea(

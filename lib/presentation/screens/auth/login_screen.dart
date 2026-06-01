@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:tbcare_app/data/services/auth_service.dart';
+import 'package:tbcare_app/data/services/database_service.dart';
+import 'package:tbcare_app/data/services/notification_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -47,7 +49,26 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (hasPlan) {
-        Navigator.pushReplacementNamed(context, '/dashboard');
+        // Reschedule notifications based on current medicine schedule
+        final medicines =
+            await DatabaseService.instance.getMedicines(userId);
+        if (medicines.isNotEmpty) {
+          final schedule = medicines.first['schedule'] as String? ?? '07:00';
+          await NotificationService.instance.scheduleDailyReminder(schedule);
+        }
+
+        // Check for missed monitoring before navigating to dashboard
+        await DatabaseService.instance.checkAndRecordMissedDoses(userId);
+        final hasMissed =
+            await DatabaseService.instance.hasUnresolvedMissedDoses(userId);
+
+        if (!mounted) return;
+
+        if (hasMissed) {
+          Navigator.pushReplacementNamed(context, '/warning');
+        } else {
+          Navigator.pushReplacementNamed(context, '/dashboard');
+        }
       } else {
         Navigator.pushReplacementNamed(context, '/patient_setup');
       }
@@ -206,19 +227,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 16),
-
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      "Lupa Password?",
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.5),
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-
                   const SizedBox(height: 32),
 
                   SizedBox(
@@ -251,48 +259,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  glassContainer(
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(18),
-                      onTap: () {},
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: 22,
-                              height: 22,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white,
-                              ),
-                              child: const Center(
-                                child: Text(
-                                  "G",
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            const Text(
-                              "Masuk dengan Google",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ),
                   ),
 

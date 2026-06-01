@@ -1,25 +1,141 @@
 import 'package:flutter/material.dart';
+import 'package:tbcare_app/data/services/database_service.dart';
+import 'package:tbcare_app/data/services/session_service.dart';
 
-class NotificationPage extends StatelessWidget {
+class NotificationPage extends StatefulWidget {
   const NotificationPage({super.key});
 
-  final List<Map<String, String>> notifications = const [
-    {
-      'title': 'Waktunya minum obat',
-      'time': '07:00 · Hari ini',
-      'message': 'Jangan lupa minum obat hari ini',
-    },
-    {
-      'title': 'Waktunya minum obat',
-      'time': '07:00 · Kemarin',
-      'message': 'Jangan lupa minum obat hari ini',
-    },
-    {
-      'title': 'Waktunya minum obat',
-      'time': '07:00 · 27 Jan',
-      'message': 'Jangan lupa minum obat hari ini',
-    },
-  ];
+  @override
+  State<NotificationPage> createState() => _NotificationPageState();
+}
+
+class _NotificationPageState extends State<NotificationPage> {
+  List<Map<String, dynamic>> _notifications = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotifications();
+  }
+
+  Future<void> _loadNotifications() async {
+    final userId = SessionService.instance.currentUserId;
+    if (userId == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      final db = DatabaseService.instance;
+      final notifications = <Map<String, dynamic>>[];
+      final now = DateTime.now();
+      final today =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      // 1. Medicine reminders — check each medicine for today
+      final medicines = await db.getMedicines(userId);
+      for (final med in medicines) {
+        final existing = await db.getTodayMonitoring(med['id'] as int, today);
+        if (existing == null) {
+          // No monitoring today — show reminder
+          final schedule = med['schedule'] as String? ?? '07:00';
+          notifications.add({
+            'title': 'Waktunya minum obat',
+            'message': '${med['name']} · Terjadwal pukul $schedule',
+            'time': _formatTimeLabel(schedule),
+            'type': 'reminder',
+            'icon': Icons.notifications_active_rounded,
+            'color': const Color(0xFFB0E4CC),
+          });
+        }
+      }
+
+      // 2. Missed dose warnings
+      final missedDoses = await db.getMissedDoses(userId);
+      for (final dose in missedDoses) {
+        if (dose['resolved'] == 1) continue;
+        notifications.add({
+          'title': 'Dosis terlewat',
+          'message': '${dose['medicine_name'] ?? 'Obat'} · ${_formatMissedDate(dose['missed_date'] as String)}',
+          'time': _formatMissedDate(dose['missed_date'] as String),
+          'type': 'warning',
+          'icon': Icons.warning_amber_rounded,
+          'color': const Color(0xFFFFB464),
+        });
+      }
+
+      // 3. Streak achievements
+      final streak = await db.calculateStreak(userId);
+      if (streak > 0) {
+        notifications.add({
+          'title': 'Streak $streak hari berturut-turut!',
+          'message': 'Tetap konsisten minum obat setiap hari',
+          'time': 'Hari ini',
+          'type': 'achievement',
+          'icon': Icons.local_fire_department_rounded,
+          'color': const Color(0xFF4ADE80),
+        });
+      }
+
+      // Sort: warnings first, then reminders, then achievements
+      notifications.sort((a, b) {
+        const order = {'warning': 0, 'reminder': 1, 'achievement': 2};
+        return (order[a['type']] ?? 9).compareTo(order[b['type']] ?? 9);
+      });
+
+      if (mounted) {
+        setState(() {
+          _notifications = notifications;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String _formatTimeLabel(String schedule) {
+    final now = DateTime.now();
+    final parts = schedule.split(':');
+    final hour = int.tryParse(parts[0]) ?? 7;
+    final minute = int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;
+    final scheduled = DateTime(now.year, now.month, now.day, hour, minute);
+
+    if (now.isBefore(scheduled)) {
+      return '$schedule · Hari ini';
+    } else {
+      final diff = now.difference(scheduled);
+      if (diff.inMinutes < 60) {
+        return '$schedule · ${diff.inMinutes} menit lalu';
+      } else {
+        return '$schedule · Hari ini';
+      }
+    }
+  }
+
+  String _formatMissedDate(String dateStr) {
+    try {
+      final parts = dateStr.split('-');
+      final date = DateTime(
+        int.parse(parts[0]),
+        int.parse(parts[1]),
+        int.parse(parts[2]),
+      );
+      final now = DateTime.now();
+      final diff = now.difference(date);
+      if (diff.inDays == 1) return 'Kemarin';
+      if (diff.inDays < 7) return '${diff.inDays} hari lalu';
+
+      const months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+        'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+      ];
+      return '${date.day} ${months[date.month - 1]}';
+    } catch (_) {
+      return dateStr;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,19 +164,46 @@ class NotificationPage extends StatelessWidget {
                 const SizedBox(height: 14),
                 _header(),
                 const SizedBox(height: 24),
-                ...notifications.map(
-                  (item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 20),
-                    child: _notificationCard(
-                      title: item['title']!,
-                      time: item['time']!,
-                      message: item['message']!,
+                if (_isLoading)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(40),
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFB0E4CC),
+                      ),
+                    ),
+                  )
+                else if (_notifications.isEmpty)
+                  _emptyState()
+                else
+                  ..._notifications.map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 20),
+                      child: _notificationCard(item),
                     ),
                   ),
-                ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyState() {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(48),
+        child: Column(
+          children: [
+            Icon(Icons.notifications_off_rounded,
+                color: Colors.white24, size: 48),
+            SizedBox(height: 12),
+            Text(
+              'Tidak ada notifikasi',
+              style: TextStyle(color: Colors.white38, fontSize: 14),
+            ),
+          ],
         ),
       ),
     );
@@ -76,8 +219,8 @@ class NotificationPage extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.04),
-          border: Border.all(color: Colors.white.withOpacity(0.08)),
+          color: Colors.white.withValues(alpha: 0.04),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           borderRadius: BorderRadius.circular(16),
         ),
         child: const Icon(
@@ -116,9 +259,9 @@ class NotificationPage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
-          'Daftar notifikasi saya',
-          style: TextStyle(
+        Text(
+          '${_notifications.length} notifikasi',
+          style: const TextStyle(
             color: Colors.white38,
             fontSize: 12,
             fontFamily: 'Inter',
@@ -132,9 +275,9 @@ class NotificationPage extends StatelessWidget {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                Colors.white.withOpacity(0),
-                Colors.white.withOpacity(0.07),
-                Colors.white.withOpacity(0),
+                Colors.white.withValues(alpha: 0),
+                Colors.white.withValues(alpha: 0.07),
+                Colors.white.withValues(alpha: 0),
               ],
             ),
           ),
@@ -143,24 +286,27 @@ class NotificationPage extends StatelessWidget {
     );
   }
 
-  Widget _notificationCard({
-    required String title,
-    required String time,
-    required String message,
-  }) {
+  Widget _notificationCard(Map<String, dynamic> item) {
+    final type = item['type'] as String;
+    final icon = item['icon'] as IconData;
+    final color = item['color'] as Color;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment(0.04, -0.05),
-          end: Alignment(0.96, 1.05),
-          colors: [
-            Color(0x2D285A48),
-            Color(0x14408A71),
-          ],
+        gradient: LinearGradient(
+          begin: const Alignment(0.04, -0.05),
+          end: const Alignment(0.96, 1.05),
+          colors: type == 'warning'
+              ? [const Color(0x2D7A5A20), const Color(0x14998040)]
+              : [const Color(0x2D285A48), const Color(0x14408A71)],
         ),
-        border: Border.all(color: const Color(0x23B0E4CC)),
+        border: Border.all(
+          color: type == 'warning'
+              ? const Color(0x23FFB464)
+              : const Color(0x23B0E4CC),
+        ),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -168,15 +314,11 @@ class NotificationPage extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.notifications_active_rounded,
-                color: Color(0xFFB0E4CC),
-                size: 20,
-              ),
+              Icon(icon, color: color, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  title,
+                  item['title'] as String,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
@@ -187,7 +329,7 @@ class NotificationPage extends StatelessWidget {
                 ),
               ),
               Text(
-                time,
+                item['time'] as String,
                 style: const TextStyle(
                   color: Colors.white38,
                   fontSize: 10,
@@ -203,12 +345,12 @@ class NotificationPage extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.03),
-              border: Border.all(color: Colors.white.withOpacity(0.05)),
+              color: Colors.white.withValues(alpha: 0.03),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              message,
+              item['message'] as String,
               style: const TextStyle(
                 color: Colors.white38,
                 fontSize: 10,
