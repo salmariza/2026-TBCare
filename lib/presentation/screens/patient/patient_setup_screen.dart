@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:tbcare_app/data/services/database_service.dart';
+import 'package:tbcare_app/data/services/notification_service.dart';
 import 'package:tbcare_app/data/services/session_service.dart';
 
 class PatientSetupScreen extends StatefulWidget {
@@ -18,6 +19,7 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
 
   DateTime? startDate;
   DateTime? endDate;
+  TimeOfDay _scheduleTime = const TimeOfDay(hour: 7, minute: 0);
 
   bool notificationEnabled = true;
   bool _isSaving = false;
@@ -53,6 +55,20 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
     if (picked != null) {
       setState(() => endDate = picked);
     }
+  }
+
+  Future<void> pickScheduleTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _scheduleTime,
+    );
+    if (picked != null) {
+      setState(() => _scheduleTime = picked);
+    }
+  }
+
+  String get _scheduleDisplayText {
+    return '${_scheduleTime.hour.toString().padLeft(2, '0')}:${_scheduleTime.minute.toString().padLeft(2, '0')}';
   }
 
   Future<void> savePatientData() async {
@@ -116,11 +132,15 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
           'user_id': userId,
           'name': name,
           'dosage': '1 Tablet',
-          'schedule': '07:00',
+          'schedule': _scheduleDisplayText,
           'treatment_phase': 'Intensive',
           'frequency': 'daily',
         });
       }
+
+      // Schedule daily reminder notification
+      await NotificationService.instance
+          .scheduleDailyReminder(_scheduleDisplayText);
 
       SessionService.instance.setUser(
         userId,
@@ -250,6 +270,53 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
                   medicineChip("Isoniazid"),
                   medicineChip("Pyrazinamide"),
                 ],
+              ),
+              const SizedBox(height: 14),
+
+              GestureDetector(
+                onTap: pickScheduleTime,
+                child: Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.white.withOpacity(0.08)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.access_time, color: Color(0xFFB0E4CC)),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Jadwal Minum Obat',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _scheduleDisplayText,
+                              style: const TextStyle(
+                                color: Color(0xFFB0E4CC),
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.white38,
+                        size: 16,
+                      ),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 28),
 

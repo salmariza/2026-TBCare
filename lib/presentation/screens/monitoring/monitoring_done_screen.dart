@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tbcare_app/presentation/screens/monitoring/monitoring_edit_screen.dart';
 import 'package:tbcare_app/presentation/screens/monitoring/monitoring.dart';
 
 class MonitoringDoneScreen extends StatelessWidget {
@@ -8,6 +9,7 @@ class MonitoringDoneScreen extends StatelessWidget {
   final String note;
   final DateTime takenAt;
   final bool isLate;
+  final List<int> monitoringIds;
 
   const MonitoringDoneScreen({
     super.key,
@@ -17,6 +19,7 @@ class MonitoringDoneScreen extends StatelessWidget {
     required this.note,
     required this.takenAt,
     required this.isLate,
+    required this.monitoringIds,
   });
 
   String get medicineText {
@@ -68,39 +71,47 @@ class MonitoringDoneScreen extends StatelessWidget {
             child: Column(
               children: [
                 // =========================
-                // ICON SUCCESS
+                // ICON SUCCESS / LATE
                 // =========================
                 Container(
                   width: 74,
                   height: 74,
-
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-
-                    color: const Color(0x22D3FFEA),
-
+                    color: isLate
+                        ? const Color(0x22FFB464)
+                        : const Color(0x22D3FFEA),
                     border: Border.all(
-                      color: const Color(0xFFD3FFEA),
+                      color: isLate
+                          ? const Color(0xFFFFB464)
+                          : const Color(0xFFD3FFEA),
                       width: 2,
                     ),
-
-                    boxShadow: const [
-                      BoxShadow(color: Color(0x55B0E4CC), blurRadius: 30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: isLate
+                            ? const Color(0x55FFB464)
+                            : const Color(0x55B0E4CC),
+                        blurRadius: 30,
+                      ),
                     ],
                   ),
-
-                  child: const Icon(
-                    Icons.check_circle_outline_rounded,
-                    color: Color(0xFFD3FFEA),
+                  child: Icon(
+                    isLate
+                        ? Icons.warning_amber_rounded
+                        : Icons.check_circle_outline_rounded,
+                    color: isLate
+                        ? const Color(0xFFFFB464)
+                        : const Color(0xFFD3FFEA),
                     size: 42,
                   ),
                 ),
 
                 const SizedBox(height: 24),
 
-                const Text(
-                  'Pemantauan Selesai',
-                  style: TextStyle(
+                Text(
+                  isLate ? 'Pemantauan Tercatat' : 'Pemantauan Selesai',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -110,8 +121,15 @@ class MonitoringDoneScreen extends StatelessWidget {
                 const SizedBox(height: 6),
 
                 Text(
-                  'Disimpan pada ${formatTime()} WIB',
-                  style: const TextStyle(color: Colors.white54, fontSize: 13),
+                  isLate
+                      ? 'Dicatat pada ${formatTime()} WIB · Terlambat'
+                      : 'Disimpan pada ${formatTime()} WIB',
+                  style: TextStyle(
+                    color: isLate
+                        ? const Color(0xFFFFB464)
+                        : Colors.white54,
+                    fontSize: 13,
+                  ),
                 ),
 
                 const SizedBox(height: 32),
@@ -126,13 +144,19 @@ class MonitoringDoneScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(18),
 
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0x44285A48), Color(0x44408A71)],
+                      colors: isLate
+                          ? [const Color(0x447A5A20), const Color(0x44998040)]
+                          : [const Color(0x44285A48), const Color(0x44408A71)],
                     ),
 
-                    border: Border.all(color: const Color(0x33B0E4CC)),
+                    border: Border.all(
+                      color: isLate
+                          ? const Color(0x33FFB464)
+                          : const Color(0x33B0E4CC),
+                    ),
                   ),
 
                   child: Column(
@@ -274,16 +298,16 @@ class MonitoringDoneScreen extends StatelessWidget {
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
+                            horizontal: 16,
+                            vertical: 14,
                           ),
 
                           decoration: BoxDecoration(
-                            color: const Color(0x22FFB464),
+                            color: const Color(0x33FFB464),
 
                             borderRadius: BorderRadius.circular(14),
 
-                            border: Border.all(color: const Color(0x55FFB464)),
+                            border: Border.all(color: const Color(0x66FFB464)),
                           ),
 
                           child: const Row(
@@ -291,17 +315,31 @@ class MonitoringDoneScreen extends StatelessWidget {
                               Icon(
                                 Icons.warning_amber_rounded,
                                 color: Color(0xFFFFB464),
-                                size: 18,
+                                size: 22,
                               ),
 
-                              SizedBox(width: 10),
+                              SizedBox(width: 12),
 
-                              Text(
-                                'Terlambat',
-                                style: TextStyle(
-                                  color: Color(0xFFFFB464),
-                                  fontWeight: FontWeight.w500,
-                                ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Terlambat Minum Obat',
+                                    style: TextStyle(
+                                      color: Color(0xFFFFB464),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Obat diminum melewati jadwal yang ditentukan',
+                                    style: TextStyle(
+                                      color: Color(0x99FFB464),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -322,12 +360,23 @@ class MonitoringDoneScreen extends StatelessWidget {
 
                   child: OutlinedButton(
                     onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const MonitoringPage(),
-                        ),
-                      );
+                      if (monitoringIds.isNotEmpty) {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MonitoringEditScreen(
+                              monitoringId: monitoringIds.first,
+                            ),
+                          ),
+                        );
+                      } else {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const MonitoringPage(),
+                          ),
+                        );
+                      }
                     },
 
                     style: OutlinedButton.styleFrom(

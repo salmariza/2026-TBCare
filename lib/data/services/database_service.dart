@@ -319,6 +319,19 @@ class DatabaseService {
 
   // ─── MONITORING ─────────────────────────────────────────
 
+  Future<Map<String, dynamic>?> getMonitoringById(int id) async {
+    final db = await database;
+
+    final results = await db.query(
+      'monitoring',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+
+    return results.isNotEmpty ? results.first : null;
+  }
+
   Future<Map<String, dynamic>?> getTodayMonitoring(
     int medicineId,
     String date,
@@ -474,6 +487,137 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  Future<bool> hasUnresolvedMissedDoses(int userId) async {
+    final db = await database;
+
+    final results = await db.rawQuery('''
+      SELECT md.id
+      FROM missed_dose md
+      JOIN medicine med ON md.medicine_id = med.id
+      WHERE med.user_id = ? AND md.resolved = 0
+      LIMIT 1
+    ''', [userId]);
+
+    return results.isNotEmpty;
+  }
+
+  Future<void> resolveAllMissedDoses(int userId) async {
+    final db = await database;
+
+    await db.rawUpdate('''
+      UPDATE missed_dose
+      SET resolved = 1
+      WHERE id IN (
+        SELECT md.id
+        FROM missed_dose md
+        JOIN medicine med ON md.medicine_id = med.id
+        WHERE med.user_id = ? AND md.resolved = 0
+      )
+    ''', [userId]);
+  }
+
+  Future<void> checkAndRecordMissedDoses(int userId) async {
+    final medicines = await getMedicines(userId);
+    if (medicines.isEmpty) return;
+
+    final now = DateTime.now();
+    final todayStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final yesterday = now.subtract(const Duration(days: 1));
+
+    // Find the earliest gap start: either treatment plan start or last monitoring date
+    final plan = await getTreatmentPlan(userId);
+    DateTime? gapStart;
+
+    if (plan != null && plan['start_date'] != null) {
+      gapStart = DateTime.tryParse(plan['start_date'] as String);
+    }
+
+    // Find the most recent monitoring date
+    String? lastMonitoredDate;
+    final takenDates = await getMonitoringDates(userId, 'taken');
+    for (final d in takenDates) {
+      final dateStr = d['date'] as String;
+      if (lastMonitoredDate == null ||
+          dateStr.compareTo(lastMonitoredDate) > 0) {
+        lastMonitoredDate = dateStr;
+      }
+    }
+    final lateDates = await getMonitoringDates(userId, 'taken_late');
+    for (final d in lateDates) {
+      final dateStr = d['date'] as String;
+      if (lastMonitoredDate == null ||
+          dateStr.compareTo(lastMonitoredDate) > 0) {
+        lastMonitoredDate = dateStr;
+      }
+    }
+
+    // Start from the day after last monitored date, or from plan start
+    if (lastMonitoredDate != null) {
+      final parts = lastMonitoredDate.split('-');
+      final nextDay = DateTime(
+        int.parse(parts[0]),
+        int.parse(parts[1]),
+        int.parse(parts[2]),
+      ).add(const Duration(days: 1));
+
+      if (gapStart == null || nextDay.isAfter(gapStart)) {
+        gapStart = nextDay;
+      }
+    }
+
+    if (gapStart == null) return;
+
+    // Walk from gapStart to yesterday, check each day
+    final scheduleStr = medicines.first['schedule'] as String? ?? '07:00';
+    final parts = scheduleStr.split(':');
+    final scheduleHour = int.tryParse(parts[0]) ?? 7;
+    final scheduleMinute =
+        int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;
+
+    for (var d = gapStart;
+        !d.isAfter(yesterday);
+        d = d.add(const Duration(days: 1))) {
+      // Skip today
+      final dateStr =
+          '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      if (dateStr == todayStr) continue;
+
+      // Check if 24h+ have passed since this day's schedule
+      final daySchedule =
+          DateTime(d.year, d.month, d.day, scheduleHour, scheduleMinute);
+      if (!now.isAfter(daySchedule.add(const Duration(hours: 24)))) continue;
+
+      // Check if monitoring exists for this date
+      bool hasMonitoring = false;
+      for (final med in medicines) {
+        final mon =
+            await getTodayMonitoring(med['id'] as int, dateStr);
+        if (mon != null && mon['status'] == 'taken' ||
+            mon != null && mon['status'] == 'taken_late') {
+          hasMonitoring = true;
+          break;
+        }
+      }
+      if (hasMonitoring) continue;
+
+      // Record missed dose for each medicine
+      for (final med in medicines) {
+        final medicineId = med['id'] as int;
+        final existing = await getMissedDoseByDate(medicineId, dateStr);
+        if (existing == null) {
+          await insertMissedDose({
+            'medicine_id': medicineId,
+            'missed_date': dateStr,
+            'resolved': 0,
+            'doctor_contacted': 0,
+            'note': '',
+          });
+        }
+      }
+    }
   }
 
   // ─── BADGE & STREAK ─────────────────────────────────────

@@ -1,16 +1,258 @@
 import 'package:flutter/material.dart';
+import 'package:tbcare_app/data/services/database_service.dart';
 import 'package:tbcare_app/data/services/session_service.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
   static const Color _bgColor = Color(0xFF091413);
   static const Color _accentColor = Color(0xFFB0E4CC);
   static const Color _primaryGreen = Color(0xFF285A48);
   static const Color _white = Colors.white;
 
+  Map<String, dynamic>? _user;
+  Map<String, dynamic>? _plan;
+  int _streak = 0;
+  int _dosesTaken = 0;
+  int _dosesMissed = 0;
+  int _totalDays = 180;
+  int _remainingDays = 0;
+  int _currentDay = 0;
+  double _complianceRate = 0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final userId = SessionService.instance.currentUserId;
+    if (userId == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      final db = DatabaseService.instance;
+      final user = await db.getUser(userId);
+      final plan = await db.getTreatmentPlan(userId);
+      final streak = await db.calculateStreak(userId);
+      final history = await db.getMonitoringHistory(userId);
+
+      int taken = 0;
+      int missed = 0;
+      for (final item in history) {
+        final status = item['status'] as String? ?? '';
+        if (status == 'taken' || status == 'taken_late') {
+          taken++;
+        } else {
+          missed++;
+        }
+      }
+
+      // Calculate plan stats
+      int totalDays = 180;
+      int currentDay = 0;
+      int remainingDays = 0;
+      if (plan != null) {
+        totalDays = plan['total_days'] as int? ?? 180;
+        final startStr = plan['start_date'] as String?;
+        if (startStr != null) {
+          final startDate = DateTime.tryParse(startStr);
+          if (startDate != null) {
+            currentDay = DateTime.now().difference(startDate).inDays + 1;
+            remainingDays = totalDays - currentDay;
+          }
+        }
+      }
+
+      final totalRecords = taken + missed;
+      final rate = totalRecords == 0 ? 0.0 : (taken / totalRecords * 100);
+
+      if (mounted) {
+        setState(() {
+          _user = user;
+          _plan = plan;
+          _streak = streak;
+          _dosesTaken = taken;
+          _dosesMissed = missed;
+          _totalDays = totalDays;
+          _currentDay = currentDay;
+          _remainingDays = remainingDays < 0 ? 0 : remainingDays;
+          _complianceRate = rate;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showEditProfileDialog() {
+    if (_user == null) return;
+
+    final nameCtrl =
+        TextEditingController(text: _user!['name'] as String? ?? '');
+    final ageCtrl = TextEditingController(
+        text: (_user!['age'] as int? ?? 0).toString());
+    String gender = _user!['gender'] as String? ?? 'Perempuan';
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF0D1F1C),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: const BorderSide(color: Color(0x33B0E4CC)),
+              ),
+              title: const Text('Edit Profil',
+                  style: TextStyle(color: Colors.white)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameCtrl,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Nama',
+                        labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(color: Color(0xFFB0E4CC)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: ageCtrl,
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Umur',
+                        labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(color: Color(0xFFB0E4CC)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _genderOption(
+                            label: 'Laki-laki',
+                            selected: gender == 'Laki-laki',
+                            onTap: () => setDialogState(() => gender = 'Laki-laki'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _genderOption(
+                            label: 'Perempuan',
+                            selected: gender == 'Perempuan',
+                            onTap: () => setDialogState(() => gender = 'Perempuan'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Batal',
+                      style: TextStyle(color: Colors.white38)),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    await DatabaseService.instance.updateUser(
+                      _user!['id'] as int,
+                      {
+                        'name': nameCtrl.text.trim(),
+                        'age': int.tryParse(ageCtrl.text.trim()) ?? 0,
+                        'gender': gender,
+                      },
+                    );
+                    if (mounted) {
+                      Navigator.pop(ctx);
+                      await _loadProfile();
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3A7A60),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: const Text('Simpan',
+                      style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _genderOption({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0x33285A48) : Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? const Color(0xFFB0E4CC) : Colors.white.withValues(alpha: 0.12),
+          ),
+        ),
+        child: Center(
+          child: Text(label,
+              style: TextStyle(
+                color: selected ? const Color(0xFFB0E4CC) : Colors.white70,
+                fontWeight: FontWeight.w600,
+              )),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: _bgColor,
+        body: const Center(
+            child: CircularProgressIndicator(color: Color(0xFFB0E4CC))),
+      );
+    }
+
     return Scaffold(
       backgroundColor: _bgColor,
       body: Container(
@@ -165,20 +407,24 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _notificationButton() {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: ShapeDecoration(
-        color: const Color(0x47285A48),
-        shape: RoundedRectangleBorder(
-          side: const BorderSide(width: 1, color: Color(0x19B0E4CC)),
-          borderRadius: BorderRadius.circular(16),
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => Navigator.pushNamed(context, '/notification'),
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: ShapeDecoration(
+          color: const Color(0x47285A48),
+          shape: RoundedRectangleBorder(
+            side: const BorderSide(width: 1, color: Color(0x19B0E4CC)),
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
-      ),
-      child: const Icon(
-        Icons.notifications_none,
-        color: Color(0xFFB0E4CC),
-        size: 18,
+        child: const Icon(
+          Icons.notifications_none,
+          color: Color(0xFFB0E4CC),
+          size: 18,
+        ),
       ),
     );
   }
@@ -201,6 +447,8 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _profileCard() {
+    final name = _user?['name'] as String? ?? 'Pengguna';
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
@@ -216,7 +464,7 @@ class ProfileScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _profileInfoRow(),
+            _profileInfoRow(name: name),
             const SizedBox(height: 12),
             _dividerLine(),
             const SizedBox(height: 12),
@@ -227,13 +475,48 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _profileInfoRow() {
+  Widget _profileInfoRow({required String name}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _avatarWithBadge(),
         const SizedBox(width: 16),
-        Expanded(child: _profileDetails()),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontFamily: 'Poppins',
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (_user?['age'] != null)
+                    _profileBadge(
+                      icon: Icons.calendar_today,
+                      label: '${_user!['age']} Tahun',
+                    ),
+                  if (_user?['gender'] != null &&
+                      (_user!['gender'] as String).isNotEmpty)
+                    _profileBadge(
+                      icon: _user!['gender'] == 'Laki-laki'
+                          ? Icons.male
+                          : Icons.female,
+                      label: _user!['gender'] as String,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -296,55 +579,6 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _profileDetails() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Ridahas',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontFamily: 'Poppins',
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 6),
-        SizedBox(
-          height: 46,
-          child: Stack(
-            children: [
-              Positioned(
-                left: 0,
-                top: 7,
-                child: _profileBadge(
-                  icon: Icons.calendar_today,
-                  label: '45 Tahun',
-                ),
-              ),
-              Positioned(
-                left: 73,
-                top: 14.75,
-                child: _profileBadge(
-                  icon: Icons.female,
-                  label: 'Wanita',
-                ),
-              ),
-              Positioned(
-                left: 149.72,
-                top: 14.50,
-                child: _profileBadge(
-                  icon: Icons.bloodtype,
-                  label: 'O+',
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _profileBadge({
     required IconData icon,
     required String label,
@@ -379,9 +613,9 @@ class ProfileScreen extends StatelessWidget {
   Widget _contactRow() {
     return Row(
       children: [
-        _contactItem(icon: Icons.phone, text: '+62 812 5129 1403'),
+        _contactItem(icon: Icons.phone, text: '+62 ---'),
         const Spacer(),
-        _contactItem(icon: Icons.location_on, text: 'Rungkut, Surabaya'),
+        _contactItem(icon: Icons.email_outlined, text: 'tbcare@---'),
       ],
     );
   }
@@ -462,8 +696,14 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _daysFulfilledCard() {
+    final progressFraction = _totalDays > 0
+        ? (_currentDay / _totalDays).clamp(0.0, 1.0)
+        : 0.0;
+    final progressPercent = (progressFraction * 100).toStringAsFixed(1);
+
     return Container(
-      padding: const EdgeInsets.only(top: 16, left: 16, right: 16, bottom: 18),
+      padding:
+          const EdgeInsets.only(top: 16, left: 16, right: 16, bottom: 18),
       decoration: ShapeDecoration(
         gradient: const LinearGradient(
           begin: Alignment(-0.01, 0.01),
@@ -482,9 +722,9 @@ class ProfileScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _smallIconBox(Icons.calendar_month),
-              const Text(
-                'of 180',
-                style: TextStyle(
+              Text(
+                'of $_totalDays',
+                style: const TextStyle(
                   color: Colors.white24,
                   fontSize: 10,
                   fontWeight: FontWeight.w300,
@@ -493,9 +733,9 @@ class ProfileScreen extends StatelessWidget {
             ],
           ),
           const Spacer(),
-          const Text(
-            '23',
-            style: TextStyle(
+          Text(
+            '$_currentDay',
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 30,
               fontFamily: 'Poppins',
@@ -512,11 +752,11 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          _miniProgressBar(widthFraction: 0.13),
+          _miniProgressBar(widthFraction: progressFraction),
           const SizedBox(height: 4),
-          const Text(
-            '12.8% dari keseluruhan',
-            style: TextStyle(
+          Text(
+            '$progressPercent% dari keseluruhan',
+            style: const TextStyle(
               color: Color(0xFFB0E4CC),
               fontSize: 10,
               fontWeight: FontWeight.w300,
@@ -548,11 +788,16 @@ class ProfileScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _smallIconBox(Icons.trending_up),
-              _changeBadge(),
+              if (_complianceRate >= 80)
+                _changeBadge(text: 'Baik', color: const Color(0xFF4ADE80))
+              else if (_complianceRate >= 50)
+                _changeBadge(text: 'Cukup', color: const Color(0xFFFFB464))
+              else if (_complianceRate > 0)
+                _changeBadge(text: 'Rendah', color: const Color(0xFFFF6E6E)),
             ],
           ),
           const Spacer(),
-          _percentageText('98', '%'),
+          _percentageText('${_complianceRate.round()}', '%'),
           const SizedBox(height: 2),
           Text(
             'Tingkat Kepatuhan',
@@ -563,11 +808,18 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          _miniProgressBar(widthFraction: 0.80),
+          _miniProgressBar(
+              widthFraction: (_complianceRate / 100).clamp(0.0, 1.0)),
           const SizedBox(height: 4),
-          const Text(
-            'Performa sangat baik',
-            style: TextStyle(
+          Text(
+            _complianceRate >= 80
+                ? 'Performa sangat baik'
+                : _complianceRate >= 50
+                    ? 'Perlu ditingkatkan'
+                    : _complianceRate > 0
+                        ? 'Butuh perhatian serius'
+                        : 'Belum ada data',
+            style: const TextStyle(
               color: Color(0xFFB0E4CC),
               fontSize: 10,
               fontWeight: FontWeight.w300,
@@ -578,21 +830,22 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _changeBadge() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(Icons.arrow_upward, size: 10, color: Color(0xFFB0E4CC)),
-        const SizedBox(width: 4),
-        const Text(
-          '+2%',
-          style: TextStyle(
-            color: Color(0xFFB0E4CC),
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
-          ),
+  Widget _changeBadge({required String text, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w500,
         ),
-      ],
+      ),
     );
   }
 
@@ -615,7 +868,7 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
           Positioned(
-            left: 37.89,
+            left: number.length > 2 ? 45.0 : 37.89,
             top: 4,
             child: Text(
               suffix,
@@ -683,6 +936,10 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _treatmentPlanCard() {
+    final status = _plan?['status'] as String? ?? 'active';
+    final phase = _plan?['treatment_phase'] as String? ??
+        (_currentDay <= 60 ? 'Fase Intensif' : 'Fase Lanjutan');
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -700,86 +957,83 @@ class ProfileScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _treatmentPlanHeader(),
-          const SizedBox(height: 12),
-          _dividerLine(),
-          const SizedBox(height: 12),
-          _treatmentPlanStats(),
-        ],
-      ),
-    );
-  }
-
-  Widget _treatmentPlanHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            _smallIconBox(Icons.assignment),
-            const SizedBox(width: 10),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Rencana Perawatan',
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  _smallIconBox(Icons.assignment),
+                  const SizedBox(width: 10),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Rencana Perawatan',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Pengobatan TBC',
+                        style: TextStyle(
+                          color: Colors.white30,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w300,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: ShapeDecoration(
+                  color: status == 'warning'
+                      ? const Color(0x19FFB464)
+                      : const Color(0x19B0E4CC),
+                  shape: RoundedRectangleBorder(
+                    side: BorderSide(
+                        width: 1,
+                        color: status == 'warning'
+                            ? const Color(0x33FFB464)
+                            : const Color(0x33B0E4CC)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  phase,
                   style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
+                    color: status == 'warning'
+                        ? const Color(0xFFFFB464)
+                        : const Color(0xFFB0E4CC),
+                    fontSize: 10,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                SizedBox(height: 2),
-                Text(
-                  'Pengobatan DOTS 6 bulan',
-                  style: TextStyle(
-                    color: Colors.white30,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w300,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        _phaseBadge(),
-      ],
-    );
-  }
-
-  Widget _phaseBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: ShapeDecoration(
-        color: const Color(0x19B0E4CC),
-        shape: RoundedRectangleBorder(
-          side: const BorderSide(width: 1, color: Color(0x33B0E4CC)),
-          borderRadius: BorderRadius.circular(12),
-        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _dividerLine(),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _statItem(value: '$_streak', label: 'Hari\nStreak'),
+              _verticalDivider(),
+              _statItem(value: '$_dosesTaken', label: 'Dosis\ndiminum'),
+              _verticalDivider(),
+              _statItem(value: '$_dosesMissed', label: 'Dosis\nTerlewat'),
+              _verticalDivider(),
+              _statItem(value: '$_remainingDays', label: 'Hari\nTersisa'),
+            ],
+          ),
+        ],
       ),
-      child: const Text(
-        'Fase 1',
-        style: TextStyle(
-          color: Color(0xFFB0E4CC),
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  Widget _treatmentPlanStats() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        _statItem(value: '7', label: 'Hari\nStreak'),
-        _verticalDivider(),
-        _statItem(value: '22', label: 'Dosis\ndiminum'),
-        _verticalDivider(),
-        _statItem(value: '1', label: 'Dosis\nTerlewat'),
-        _verticalDivider(),
-        _statItem(value: '157', label: 'Hari\nTersisa'),
-      ],
     );
   }
 
@@ -825,51 +1079,50 @@ class ProfileScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         children: [
-          _editProfileButton(),
-          const SizedBox(height: 12),
-          _logoutButton(context),
-        ],
-      ),
-    );
-  }
-
-  Widget _editProfileButton() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: ShapeDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment(0.21, -1.35),
-          end: Alignment(0.79, 2.35),
-          colors: [Color(0xFF285A48), Color(0xFF408A71)],
-        ),
-        shape: RoundedRectangleBorder(
-          side: const BorderSide(width: 1, color: Color(0x33B0E4CC)),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        shadows: const [
-          BoxShadow(
-            color: Color(0x66285A48),
-            blurRadius: 24,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: const Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.edit, color: Colors.white, size: 14),
-          SizedBox(width: 10),
-          Text(
-            'Edit Profil',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontFamily: 'Poppins',
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.35,
+          GestureDetector(
+            onTap: _showEditProfileDialog,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: ShapeDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment(0.21, -1.35),
+                  end: Alignment(0.79, 2.35),
+                  colors: [Color(0xFF285A48), Color(0xFF408A71)],
+                ),
+                shape: RoundedRectangleBorder(
+                  side: const BorderSide(width: 1, color: Color(0x33B0E4CC)),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                shadows: const [
+                  BoxShadow(
+                    color: Color(0x66285A48),
+                    blurRadius: 24,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.edit, color: Colors.white, size: 14),
+                  SizedBox(width: 10),
+                  Text(
+                    'Edit Profil',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontFamily: 'Poppins',
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.35,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
+          const SizedBox(height: 12),
+          _logoutButton(context),
         ],
       ),
     );
@@ -945,7 +1198,8 @@ class ProfileScreen extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 390),
         child: Container(
           width: 375,
-          padding: const EdgeInsets.only(top: 12, left: 16, right: 16, bottom: 24),
+          padding:
+              const EdgeInsets.only(top: 12, left: 16, right: 16, bottom: 24),
           decoration: ShapeDecoration(
             color: const Color(0xF20A1614),
             shape: RoundedRectangleBorder(
@@ -959,19 +1213,22 @@ class ProfileScreen extends StatelessWidget {
                 icon: Icons.home_rounded,
                 label: 'Beranda',
                 isActive: false,
-                onTap: () => Navigator.pushReplacementNamed(context, '/dashboard'),
+                onTap: () =>
+                    Navigator.pushReplacementNamed(context, '/dashboard'),
               ),
               _navItem(
                 icon: Icons.fact_check_rounded,
                 label: 'Pemantauan',
                 isActive: false,
-                onTap: () => Navigator.pushReplacementNamed(context, '/monitoring'),
+                onTap: () =>
+                    Navigator.pushReplacementNamed(context, '/monitoring'),
               ),
               _navItem(
                 icon: Icons.history_rounded,
                 label: 'Riwayat',
                 isActive: false,
-                onTap: () => Navigator.pushReplacementNamed(context, '/history'),
+                onTap: () =>
+                    Navigator.pushReplacementNamed(context, '/history'),
               ),
               _navItem(
                 icon: Icons.person_rounded,
@@ -1012,14 +1269,18 @@ class ProfileScreen extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: isActive ? _accentColor : _white.withValues(alpha: 0.30),
+              color: isActive
+                  ? _accentColor
+                  : _white.withValues(alpha: 0.30),
               size: 22,
             ),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
-                color: isActive ? _accentColor : _white.withValues(alpha: 0.30),
+                color: isActive
+                    ? _accentColor
+                    : _white.withValues(alpha: 0.30),
                 fontSize: isActive ? 12 : 10,
                 fontWeight: FontWeight.w600,
               ),

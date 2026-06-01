@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:tbcare_app/data/services/notification_service.dart';
 import 'package:tbcare_app/routes/app_routes.dart';
 
 void main() {
@@ -24,6 +25,9 @@ void main() {
     databaseFactory = databaseFactoryFfi;
   }
 
+  // Initialize notification service
+  NotificationService.instance.initialize();
+
   runApp(const MainApp());
 }
 
@@ -34,6 +38,7 @@ class MainApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'TB Care',
+      navigatorKey: NotificationService.instance.navigatorKey,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
