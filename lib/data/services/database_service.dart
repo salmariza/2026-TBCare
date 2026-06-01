@@ -591,7 +591,7 @@ class DatabaseService {
     return results.map((r) => r['date'] as String).toList();
   }
 
-  // ─── CLOSE DATABASE ─────────────────────────────────────
+  // ─── CLOSE DATABASE ─────
 
   Future<void> close() async {
     final db = await database;
