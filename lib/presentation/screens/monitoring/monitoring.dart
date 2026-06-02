@@ -1035,7 +1035,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
           ),
           Switch(
             value: isSelected,
-            activeColor: Colors.white,
+            activeThumbColor: Colors.white,
             activeTrackColor: const Color(0xFF408A71),
             onChanged: (value) {
               setState(() {
@@ -1133,7 +1133,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
             ],
           ),
         ),
-        if (trailing != null) trailing,
+        ?trailing,
       ],
     );
   }
