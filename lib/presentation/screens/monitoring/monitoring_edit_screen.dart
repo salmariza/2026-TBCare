@@ -803,7 +803,7 @@ class _MonitoringEditScreenState extends State<MonitoringEditScreen> {
 
           Switch(
             value: selected,
-            activeColor: const Color(0xFFB0E4CC),
+            activeThumbColor: const Color(0xFFB0E4CC),
             onChanged: (value) {
               setState(() {
                 _selectedSymptoms[symptomId] = value;

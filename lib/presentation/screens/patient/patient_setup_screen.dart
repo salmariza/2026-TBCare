@@ -357,7 +357,7 @@ class _PatientSetupScreenState extends State<PatientSetupScreen> {
                     ),
                     Switch(
                       value: notificationEnabled,
-                      activeColor: const Color(0xFFB0E4CC),
+                      activeThumbColor: const Color(0xFFB0E4CC),
                       onChanged: (value) {
                         setState(() => notificationEnabled = value);
                       },
