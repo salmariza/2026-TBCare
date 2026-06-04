@@ -84,6 +84,13 @@ class _NotificationPageState extends State<NotificationPage> {
         return (order[a['type']] ?? 9).compareTo(order[b['type']] ?? 9);
       });
 
+      // Add dummy data for June 1-8, 2026
+      notifications.addAll(_dummyNotifications());
+      notifications.sort((a, b) {
+        const order = {'warning': 0, 'reminder': 1, 'achievement': 2};
+        return (order[a['type']] ?? 9).compareTo(order[b['type']] ?? 9);
+      });
+
       if (mounted) {
         setState(() {
           _notifications = notifications;
@@ -93,6 +100,83 @@ class _NotificationPageState extends State<NotificationPage> {
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  List<Map<String, dynamic>> _dummyNotifications() {
+    return [
+      // --- June 1, 2026 (Senin) ---
+      {
+        'title': 'Waktunya minum obat',
+        'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
+        'time': '09:00 · 1 Jun',
+        'type': 'reminder',
+        'icon': Icons.notifications_active_rounded,
+        'color': const Color(0xFFB0E4CC),
+      },
+      // --- June 2, 2026 (Selasa) ---
+      {
+        'title': 'Waktunya minum obat',
+        'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
+        'time': '09:00 · 2 Jun',
+        'type': 'reminder',
+        'icon': Icons.notifications_active_rounded,
+        'color': const Color(0xFFB0E4CC),
+      },
+      // --- June 3, 2026 (Rabu) ---
+      {
+        'title': 'Waktunya minum obat',
+        'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
+        'time': '09:00 · 3 Jun',
+        'type': 'reminder',
+        'icon': Icons.notifications_active_rounded,
+        'color': const Color(0xFFB0E4CC),
+      },
+      // --- June 4, 2026 (Kamis) ---
+      {
+        'title': 'Waktunya minum obat',
+        'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
+        'time': '09:00 · 4 Jun',
+        'type': 'reminder',
+        'icon': Icons.notifications_active_rounded,
+        'color': const Color(0xFFB0E4CC),
+      },
+      // --- June 5, 2026 (Jumat) ---
+      {
+        'title': 'Waktunya minum obat',
+        'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
+        'time': '09:00 · 5 Jun',
+        'type': 'reminder',
+        'icon': Icons.notifications_active_rounded,
+        'color': const Color(0xFFB0E4CC),
+      },
+      // --- June 6, 2026 (Sabtu) ---
+      {
+        'title': 'Waktunya minum obat',
+        'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
+        'time': '09:00 · 6 Jun',
+        'type': 'reminder',
+        'icon': Icons.notifications_active_rounded,
+        'color': const Color(0xFFB0E4CC),
+      },
+      // --- June 7, 2026 (Minggu) ---
+      {
+        'title': 'Waktunya minum obat',
+        'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
+        'time': '09:00 · 7 Jun',
+        'type': 'reminder',
+        'icon': Icons.notifications_active_rounded,
+        'color': const Color(0xFFB0E4CC),
+      },
+      // --- June 8, 2026 (Senin) ---
+      {
+        'title': 'Waktunya minum obat',
+        'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
+        'time': '09:00 · 8 Jun',
+        'type': 'reminder',
+        'icon': Icons.notifications_active_rounded,
+        'color': const Color(0xFFB0E4CC),
+      },
+    ];
   }
 
   String _formatTimeLabel(String schedule) {
