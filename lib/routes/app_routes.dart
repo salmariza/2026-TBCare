@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:tbcare_app/presentation/screens/splash/welcome_screen.dart';
+import 'package:tbcare_app/presentation/screens/splash/splash_screen.dart';
 import 'package:tbcare_app/presentation/screens/auth/login_screen.dart';
 import 'package:tbcare_app/presentation/screens/auth/register_screen.dart';
 import 'package:tbcare_app/presentation/screens/patient/patient_setup_screen.dart';
@@ -11,7 +11,7 @@ import 'package:tbcare_app/presentation/screens/notification/notification.dart';
 import 'package:tbcare_app/presentation/screens/profile/profile_screen.dart';
 
 class AppRoutes {
-  static const String welcome = '/welcome';
+  static const String splash = '/splash';
   static const String login = '/login';
   static const String register = '/register';
   static const String patientSetup = '/patient_setup';
@@ -24,7 +24,7 @@ class AppRoutes {
 
   static Map<String, WidgetBuilder> getRoutes() {
     return {
-      welcome: (context) => const WelcomeScreen(),
+      splash: (context) => const SplashScreen(),
       login: (context) => const LoginScreen(),
       register: (context) => const RegisterScreen(),
       patientSetup: (context) => const PatientSetupScreen(),
@@ -37,3 +37,4 @@ class AppRoutes {
     };
   }
 }
+
