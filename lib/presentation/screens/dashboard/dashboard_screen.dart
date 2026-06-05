@@ -150,8 +150,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return '${days[now.weekday]}, ${now.day} ${months[now.month - 1]}';
   }
 
+  // --- LOGIKA STATUS TOMBOL ---
+  
   bool get _isTodayTaken =>
-      _todayMonitoring != null && _todayMonitoring!['status'] == 'taken';
+      _todayMonitoring != null &&
+      (_todayMonitoring!['status'] == 'taken' || _todayMonitoring!['status'] == 'taken_late');
+
+  bool get _isTodayLocked {
+    if (_isTodayTaken) return false; // Kalau sudah diminum, abaikan status lock
+    if (_medicines.isEmpty) return false;
+
+    // Ambil jadwal minum obat
+    final scheduleStr = _medicineSchedule;
+    final parts = scheduleStr.split(':');
+    final hour = int.tryParse(parts[0]) ?? 7;
+    final minute = int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;
+
+    final now = DateTime.now();
+    final scheduledTime = DateTime(now.year, now.month, now.day, hour, minute);
+
+    // Terkunci jika waktu saat ini MASIH SEBELUM jadwal minum obat
+    return now.isBefore(scheduledTime);
+  }
 
   String get _todayTakenTime {
     if (_todayMonitoring == null || _todayMonitoring!['taken_at'] == null) {
@@ -658,7 +678,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ],
               ),
-              const Icon(Icons.more_vert, color: Color(0xFF285A48)),
+              // PERUBAHAN: Icon titik tiga dihilangkan di sini
             ],
           ),
           const SizedBox(height: 16),
@@ -685,6 +705,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const Icon(Icons.medication, color: Color(0x99285A48), size: 16),
                 const SizedBox(width: 4),
                 Flexible(
+                  // PERUBAHAN: Teks dibiarkan tanpa ellipsis (terbaca full)
                   child: Text(
                     _medicineDisplayText,
                     style: const TextStyle(
@@ -692,16 +713,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       fontSize: 12,
                       height: 1.2,
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 16),
+          // PERUBAHAN: Logika dan visualisasi form button (Sudah vs Lock)
           InkWell(
             borderRadius: BorderRadius.circular(16),
-            onTap: _isTodayTaken
+            onTap: (_isTodayTaken || _isTodayLocked)
                 ? null
                 : () {
                     Navigator.pushNamed(context, '/monitoring');
@@ -713,12 +734,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: _isTodayTaken
-                      ? [const Color(0xFF666666), const Color(0xFF4D4D4D)]
-                      : [const Color(0xFF285A48), const Color(0xFF1E4435)],
+                  // TAMPILAN SAMA (Abu-abu disable) JIKA SUDAH DIMINUM ATAUPUN TERKUNCI BELUM WAKTUNYA
+                  colors: (_isTodayTaken || _isTodayLocked)
+                      ? [const Color(0xFF666666), const Color(0xFF4D4D4D)] // Warna Abu (Disabled)
+                      : [const Color(0xFF285A48), const Color(0xFF1E4435)], // Warna Hijau (Aktif)
                 ),
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: _isTodayTaken
+                boxShadow: (_isTodayTaken || _isTodayLocked)
                     ? null
                     : const [
                         BoxShadow(
@@ -731,14 +753,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.check,
-                      color: _isTodayTaken ? Colors.white38 : Colors.white,
-                      size: 20),
+                  Icon(
+                    _isTodayTaken
+                        ? Icons.check // Centang jika sudah diminum
+                        : _isTodayLocked
+                            ? Icons.lock_outline // Gembok jika belum waktunya
+                            : Icons.check, // Centang (Aktif) jika sudah waktunya
+                    color: (_isTodayTaken || _isTodayLocked) ? Colors.white38 : Colors.white,
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Text(
-                    'Tandai Sudah',
+                    _isTodayTaken
+                        ? 'Sudah Diminum' // Teks jika sudah diminum
+                        : _isTodayLocked
+                            ? 'Dapat diminum jam $_medicineSchedule' // Peringatan jam jika belum waktunya
+                            : 'Tandai Sudah', // Teks jika siap dipencet
                     style: TextStyle(
-                      color: _isTodayTaken ? Colors.white38 : Colors.white,
+                      color: (_isTodayTaken || _isTodayLocked) ? Colors.white38 : Colors.white,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -830,7 +862,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          _isTodayTaken ? 'Sudah' : 'Belum diminum',
+                          _isTodayTaken ? 'Sudah diminum' : 'Belum diminum',
                           style: TextStyle(
                             color: _isTodayTaken
                                 ? const Color(0xFFB0E4CC)
