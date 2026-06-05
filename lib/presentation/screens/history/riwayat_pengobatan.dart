@@ -40,34 +40,76 @@ class _HistoryPageState extends State<HistoryPage> {
       final plan = await db.getTreatmentPlan(userId);
       final medicines = await db.getMedicines(userId);
 
-      // Collect all dates that have monitoring records
+      // Group monitoring records by date (one entry per day)
       final monitoredDates = <String>{};
-      final enriched = <Map<String, dynamic>>[];
+      final groupedByDate = <String, List<Map<String, dynamic>>>{};
 
       for (final item in history) {
-        final status = item['status'] as String? ?? '';
-        monitoredDates.add(item['date'] as String);
+        final date = item['date'] as String;
+        monitoredDates.add(date);
+        groupedByDate.putIfAbsent(date, () => []).add(item);
+      }
 
-        // Determine display status
+      // Build enriched list — one entry per unique date
+      final enriched = <Map<String, dynamic>>[];
+      for (final entry in groupedByDate.entries) {
+        final date = entry.key;
+        final records = entry.value;
+
+        // Collect all medicine names
+        final medNames = records
+            .map((r) => r['medicine_name'] as String? ?? 'Obat')
+            .toSet()
+            .join(', ');
+
+        // Collect all symptoms from all records for this date
+        final allSymptomNames = <String>{};
+        String? latestTakenAt;
+        String combinedNote = '';
+
+        // Determine overall status: late if any late, else the first non-missed
+        String overallStatus = 'taken';
+        for (final r in records) {
+          final st = r['status'] as String? ?? '';
+          if (st == 'taken_late') overallStatus = 'taken_late';
+
+          final symptoms =
+              await db.getSymptomsForMonitoring(r['id'] as int);
+          for (final s in symptoms) {
+            allSymptomNames.add(s['name'] as String);
+          }
+
+          // Use the latest taken_at
+          final takenAt = r['taken_at'] as String?;
+          if (takenAt != null &&
+              (latestTakenAt == null ||
+                  takenAt.compareTo(latestTakenAt) > 0)) {
+            latestTakenAt = takenAt;
+          }
+
+          final note = r['note'] as String?;
+          if (note != null && note.isNotEmpty) {
+            combinedNote = note;
+          }
+        }
+
         String displayStatus;
-        if (status == 'taken') {
-          displayStatus = 'on_time';
-        } else if (status == 'taken_late') {
+        if (overallStatus == 'taken_late') {
           displayStatus = 'late';
+        } else if (overallStatus == 'taken') {
+          displayStatus = 'on_time';
         } else {
           displayStatus = 'missed';
         }
 
-        // Load symptoms for this entry
-        final symptoms =
-            await db.getSymptomsForMonitoring(item['id'] as int);
-        final symptomNames =
-            symptoms.map((s) => s['name'] as String).toList();
-
         enriched.add({
-          ...item,
-          'symptoms': symptomNames,
+          'date': date,
+          'status': overallStatus,
           'display_status': displayStatus,
+          'medicine_name': medNames,
+          'taken_at': latestTakenAt,
+          'note': combinedNote.isNotEmpty ? combinedNote : null,
+          'symptoms': allSymptomNames.toList(),
           'is_missed_day': false,
         });
       }
@@ -121,6 +163,9 @@ class _HistoryPageState extends State<HistoryPage> {
         }
       }
 
+      // Append dummy data for June 1-8, 2026
+      enriched.addAll(_dummyHistory());
+
       // Sort by date descending
       enriched.sort((a, b) {
         final aDate = a['date'] as String;
@@ -153,6 +198,104 @@ class _HistoryPageState extends State<HistoryPage> {
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// Dummy treatment history data for June 1-8, 2026.
+  /// Realistic patient who mostly adheres, occasionally late, missed once.
+  List<Map<String, dynamic>> _dummyHistory() {
+    const meds = 'Rifampicin 300mg, Isoniazid 300mg, '
+        'Pyrazinamide 500mg, Ethambutol 400mg';
+
+    return [
+      // --- June 1, 2026 (Senin) — On Time ---
+      /*{
+        'date': '2026-06-01',
+        'status': 'taken',
+        'display_status': 'on_time',
+        'medicine_name': meds,
+        'taken_at': '2026-06-01T09:00:00',
+        'note': null,
+        'symptoms': <String>[],
+        'is_missed_day': false,
+      },
+      // --- June 2, 2026 (Selasa) — On Time ---
+      {
+        'date': '2026-06-02',
+        'status': 'taken',
+        'display_status': 'on_time',
+        'medicine_name': meds,
+        'taken_at': '2026-06-02T09:00:00',
+        'note': null,
+        'symptoms': <String>[],
+        'is_missed_day': false,
+      },*/
+      // --- June 3, 2026 (Rabu) — Late ---
+      {
+        'date': '2026-06-03',
+        'status': 'taken_late',
+        'display_status': 'late',
+        'medicine_name': meds,
+        'taken_at': '2026-06-03T11:30:12',
+        'note': 'Bangun kesiangan, baru sempat minum obat setelah sarapan.',
+        'symptoms': <String>['Pusing ringan'],
+        'is_missed_day': false,
+      },
+      // --- June 4, 2026 (Kamis) — Missed (today) ---
+      {
+        'date': '2026-06-04',
+        'status': 'missed',
+        'display_status': 'missed',
+        'medicine_name': meds,
+        'taken_at': null,
+        'note': null,
+        'symptoms': <String>[],
+        'is_missed_day': true,
+      },
+      // --- June 5, 2026 (Jumat) — On Time ---
+      {
+        'date': '2026-06-05',
+        'status': 'taken',
+        'display_status': 'on_time',
+        'medicine_name': meds,
+        'taken_at': '2026-06-05T09:00:00',
+        'note': null,
+        'symptoms': <String>[],
+        'is_missed_day': false,
+      },
+      // --- June 6, 2026 (Sabtu) — Late ---
+      /*{
+        'date': '2026-06-06',
+        'status': 'taken_late',
+        'display_status': 'late',
+        'medicine_name': meds,
+        'taken_at': '2026-06-06T10:15:58',
+        'note': 'Lupa bawa obat saat keluar rumah, baru minum setelah pulang.',
+        'symptoms': <String>['Batuk', 'Lelah'],
+        'is_missed_day': false,
+      },
+      // --- June 7, 2026 (Minggu) — On Time ---
+      {
+        'date': '2026-06-07',
+        'status': 'taken',
+        'display_status': 'on_time',
+        'medicine_name': meds,
+        'taken_at': '2026-06-07T09:00:00',
+        'note': null,
+        'symptoms': <String>[],
+        'is_missed_day': false,
+      },
+      // --- June 8, 2026 (Senin) — Missed (the only one) ---
+      {
+        'date': '2026-06-08',
+        'status': 'missed',
+        'display_status': 'missed',
+        'medicine_name': meds,
+        'taken_at': null,
+        'note': null,
+        'symptoms': <String>[],
+        'is_missed_day': true,
+      }, */
+    ];
   }
 
   void _applyFilter() {
@@ -194,15 +337,12 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   String _formatTimeAgo(String? takenAt, String dateStr) {
-    if (takenAt == null) return dateStr;
+    if (takenAt == null) return 'Tidak diminum';
     try {
       final dt = DateTime.parse(takenAt);
       final time =
           '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-      final diff = DateTime.now().difference(dt);
-      if (diff.inDays == 0) return '$time · Today';
-      if (diff.inDays == 1) return '$time · Kemarin';
-      return '$time · ${diff.inDays} hari lalu';
+      return 'Pukul $time';
     } catch (_) {
       return dateStr;
     }
