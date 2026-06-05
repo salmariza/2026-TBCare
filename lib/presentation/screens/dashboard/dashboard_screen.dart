@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:tbcare_app/data/services/database_service.dart';
 import 'package:tbcare_app/data/services/session_service.dart';
+import 'package:tbcare_app/widgets/custom_bottom_nav.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -204,11 +205,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: const CustomBottomNavBar(currentIndex: 0),
     );
   }
 
+  String _getInitials(String name) {
+    if (name.trim().isEmpty) return '?';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length > 1) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    if (name.length > 1) {
+      return name.substring(0, 2).toUpperCase();
+    }
+    return name[0].toUpperCase();
+  }
+
   Widget _buildHeader() {
+    final name = _user?['name'] as String? ?? 'Pengguna';
+    final initials = _getInitials(name);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -220,14 +235,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
+                    color: const Color(0xFF285A48),
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: const Color(0x4CB0E4CC),
                       width: 2,
                     ),
-                    image: const DecorationImage(
-                      image: NetworkImage("https://placehold.co/44x44"),
-                      fit: BoxFit.cover,
+                  ),
+                  child: Center(
+                    child: Text(
+                      initials,
+                      style: const TextStyle(
+                        color: Color(0xFFB0E4CC),
+                        fontSize: 16,
+                        fontFamily: 'Poppins',
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
@@ -860,7 +883,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   margin: const EdgeInsets.symmetric(horizontal: 2),
                   decoration: BoxDecoration(
                     color: isDone
-                        ? const Color(0xFF408A71)
+                        ? const Color(0xFFFFB464) // Yellow
                         : Colors.white.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(999),
                   ),

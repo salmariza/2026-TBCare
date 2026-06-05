@@ -726,7 +726,7 @@ class DatabaseService {
       FROM monitoring m
       JOIN medicine med ON m.medicine_id = med.id
       WHERE med.user_id = ?
-        AND m.status = 'taken'
+        AND m.status IN ('taken', 'taken_late')
         AND m.date >= ?
         AND m.date <= ?
       ORDER BY m.date ASC

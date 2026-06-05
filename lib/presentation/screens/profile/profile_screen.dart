@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:tbcare_app/data/services/database_service.dart';
 import 'package:tbcare_app/data/services/session_service.dart';
+import 'package:tbcare_app/widgets/custom_bottom_nav.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -268,7 +269,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               _backgroundDecorations(),
               SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: 144),
+                padding: const EdgeInsets.only(bottom: 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -284,11 +285,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
               ),
-              _bottomNav(context),
             ],
           ),
         ),
       ),
+      bottomNavigationBar: const CustomBottomNavBar(currentIndex: 3),
     );
   }
 
@@ -465,10 +466,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _profileInfoRow(name: name),
-            const SizedBox(height: 12),
-            _dividerLine(),
-            const SizedBox(height: 12),
-            _contactRow(),
           ],
         ),
       ),
@@ -479,7 +476,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        _avatarWithBadge(),
+        _avatarWithBadge(name: name),
         const SizedBox(width: 16),
         Expanded(
           child: Column(
@@ -521,7 +518,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _avatarWithBadge() {
+  String _getInitials(String name) {
+    if (name.trim().isEmpty) return '?';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length > 1) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    if (name.length > 1) {
+      return name.substring(0, 2).toUpperCase();
+    }
+    return name[0].toUpperCase();
+  }
+
+  Widget _avatarWithBadge({required String name}) {
+    final initials = _getInitials(name);
     return Stack(
       children: [
         Container(
@@ -540,9 +550,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
               padding: const EdgeInsets.all(3),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(9999),
-                child: Image.network(
-                  'https://placehold.co/68x68',
-                  fit: BoxFit.fill,
+                child: Container(
+                  color: const Color(0xFF285A48),
+                  child: Center(
+                    child: Text(
+                      initials,
+                      style: const TextStyle(
+                        color: Color(0xFFB0E4CC),
+                        fontSize: 28,
+                        fontFamily: 'Poppins',
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -850,38 +870,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _percentageText(String number, String suffix) {
-    return SizedBox(
-      height: 32,
-      child: Stack(
-        children: [
-          Positioned(
-            left: 0,
-            top: -0.50,
-            child: Text(
-              number,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 30,
-                fontFamily: 'Poppins',
-                fontWeight: FontWeight.w700,
-              ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          number,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 34,
+            fontFamily: 'Poppins',
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Text(
+            suffix,
+            style: const TextStyle(
+              color: Color(0xFFB0E4CC),
+              fontSize: 24,
+              fontFamily: 'Poppins',
+              fontWeight: FontWeight.w600,
             ),
           ),
-          Positioned(
-            left: number.length > 2 ? 45.0 : 37.89,
-            top: 4,
-            child: Text(
-              suffix,
-              style: const TextStyle(
-                color: Color(0xFFB0E4CC),
-                fontSize: 20,
-                fontFamily: 'Poppins',
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

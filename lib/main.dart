@@ -43,9 +43,17 @@ class MainApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF1a5555),
         ),
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
+          },
+        ),
       ),
-      initialRoute: AppRoutes.welcome,
+      initialRoute: AppRoutes.splash,
       routes: AppRoutes.getRoutes(),
     );
   }
 }
+

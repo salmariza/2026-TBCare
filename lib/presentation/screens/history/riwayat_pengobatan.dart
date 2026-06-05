@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:tbcare_app/data/services/database_service.dart';
 import 'package:tbcare_app/data/services/session_service.dart';
+import 'package:tbcare_app/widgets/custom_bottom_nav.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -260,7 +261,7 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: const CustomBottomNavBar(currentIndex: 2),
     );
   }
 

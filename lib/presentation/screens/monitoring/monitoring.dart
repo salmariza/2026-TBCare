@@ -4,6 +4,7 @@ import 'package:tbcare_app/data/services/database_service.dart';
 import 'package:tbcare_app/data/services/session_service.dart';
 import 'package:tbcare_app/presentation/screens/monitoring/monitoring_done_screen.dart';
 import 'package:tbcare_app/presentation/screens/monitoring/monitoring_edit_screen.dart';
+import 'package:tbcare_app/widgets/custom_bottom_nav.dart';
 
 class MonitoringPage extends StatefulWidget {
   const MonitoringPage({super.key});
@@ -296,7 +297,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF091413),
-      bottomNavigationBar: _bottomNavigation(),
+      bottomNavigationBar: const CustomBottomNavBar(currentIndex: 1),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -444,11 +445,11 @@ class _MonitoringPageState extends State<MonitoringPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildDailyCheckForm(),
-        const SizedBox(height: 24),
         _buildSymptomsSection(),
         const SizedBox(height: 24),
         _buildNotesSection(),
+        const SizedBox(height: 24),
+        _buildDailyCheckForm(),
         const SizedBox(height: 14),
         _buildPrivacyText(),
       ],
