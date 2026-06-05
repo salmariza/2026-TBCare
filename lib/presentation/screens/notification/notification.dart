@@ -20,75 +20,15 @@ class _NotificationPageState extends State<NotificationPage> {
   }
 
   Future<void> _loadNotifications() async {
-    final userId = SessionService.instance.currentUserId;
-    if (userId == null) {
-      if (mounted) setState(() => _isLoading = false);
-      return;
-    }
-
     try {
-      final db = DatabaseService.instance;
-      final notifications = <Map<String, dynamic>>[];
-      final now = DateTime.now();
-      final today =
-          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      // Use dummy data for demo (June 1-8, 2026)
+      final notifications = _dummyNotifications();
 
-      // 1. Medicine reminders — check each medicine for today
-      final medicines = await db.getMedicines(userId);
-      for (final med in medicines) {
-        final existing = await db.getTodayMonitoring(med['id'] as int, today);
-        if (existing == null) {
-          // No monitoring today — show reminder
-          final schedule = med['schedule'] as String? ?? '07:00';
-          notifications.add({
-            'title': 'Waktunya minum obat',
-            'message': '${med['name']} · Terjadwal pukul $schedule',
-            'time': _formatTimeLabel(schedule),
-            'type': 'reminder',
-            'icon': Icons.notifications_active_rounded,
-            'color': const Color(0xFFB0E4CC),
-          });
-        }
-      }
-
-      // 2. Missed dose warnings
-      final missedDoses = await db.getMissedDoses(userId);
-      for (final dose in missedDoses) {
-        if (dose['resolved'] == 1) continue;
-        notifications.add({
-          'title': 'Dosis terlewat',
-          'message': '${dose['medicine_name'] ?? 'Obat'} · ${_formatMissedDate(dose['missed_date'] as String)}',
-          'time': _formatMissedDate(dose['missed_date'] as String),
-          'type': 'warning',
-          'icon': Icons.warning_amber_rounded,
-          'color': const Color(0xFFFFB464),
-        });
-      }
-
-      // 3. Streak achievements
-      final streak = await db.calculateStreak(userId);
-      if (streak > 0) {
-        notifications.add({
-          'title': 'Streak $streak hari berturut-turut!',
-          'message': 'Tetap konsisten minum obat setiap hari',
-          'time': 'Hari ini',
-          'type': 'achievement',
-          'icon': Icons.local_fire_department_rounded,
-          'color': const Color(0xFF4ADE80),
-        });
-      }
-
-      // Sort: warnings first, then reminders, then achievements
+      // Sort descending by date (most recent first)
       notifications.sort((a, b) {
-        const order = {'warning': 0, 'reminder': 1, 'achievement': 2};
-        return (order[a['type']] ?? 9).compareTo(order[b['type']] ?? 9);
-      });
-
-      // Add dummy data for June 1-8, 2026
-      notifications.addAll(_dummyNotifications());
-      notifications.sort((a, b) {
-        const order = {'warning': 0, 'reminder': 1, 'achievement': 2};
-        return (order[a['type']] ?? 9).compareTo(order[b['type']] ?? 9);
+        final aDate = _parseDummyDate(a['time'] as String);
+        final bDate = _parseDummyDate(b['time'] as String);
+        return bDate.compareTo(aDate);
       });
 
       if (mounted) {
@@ -99,6 +39,23 @@ class _NotificationPageState extends State<NotificationPage> {
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  DateTime _parseDummyDate(String timeLabel) {
+    // timeLabel format: "09:00 · 1 Jun" or "09:00 · 8 Jun"
+    try {
+      final datePart = timeLabel.split('·').last.trim(); // "1 Jun"
+      final parts = datePart.split(' ');
+      final day = int.parse(parts[0]);
+      const months = {
+        'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'Mei': 5, 'Jun': 6,
+        'Jul': 7, 'Agu': 8, 'Sep': 9, 'Okt': 10, 'Nov': 11, 'Des': 12,
+      };
+      final month = months[parts[1]] ?? 6;
+      return DateTime(2026, month, day);
+    } catch (_) {
+      return DateTime(2026, 1, 1);
     }
   }
 
