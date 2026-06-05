@@ -102,10 +102,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final nameCtrl =
         TextEditingController(text: _user!['name'] as String? ?? '');
     final ageCtrl = TextEditingController(
-        text: (_user!['age'] as int? ?? 0).toString());
-    String gender = _user!['gender'] as String? ?? 'Perempuan';
-
-    showDialog(
+        text: (_user!['age'] as int? ?? 0).toString());    showDialog(
       context: context,
       builder: (ctx) {
         return StatefulBuilder(
@@ -157,25 +154,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _genderOption(
-                            label: 'Laki-laki',
-                            selected: gender == 'Laki-laki',
-                            onTap: () => setDialogState(() => gender = 'Laki-laki'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _genderOption(
-                            label: 'Perempuan',
-                            selected: gender == 'Perempuan',
-                            onTap: () => setDialogState(() => gender = 'Perempuan'),
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
@@ -192,7 +170,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       {
                         'name': nameCtrl.text.trim(),
                         'age': int.tryParse(ageCtrl.text.trim()) ?? 0,
-                        'gender': gender,
                       },
                     );
                     if (mounted) {
@@ -703,9 +680,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _treatmentStatsRow() {
-    return SizedBox(
-      height: 165.50,
+    return IntrinsicHeight(
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(child: _daysFulfilledCard()),
           const SizedBox(width: 12),

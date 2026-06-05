@@ -249,7 +249,18 @@ class _MonitoringEditScreenState extends State<MonitoringEditScreen> {
               children: [
                 // HEADER
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: () {
+                        Navigator.pushReplacementNamed(context, '/monitoring');
+                      },
+                      padding: EdgeInsets.zero,
+                      alignment: Alignment.centerLeft,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

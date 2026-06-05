@@ -701,36 +701,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 16),
           InkWell(
             borderRadius: BorderRadius.circular(16),
-            onTap: () {
-              Navigator.pushNamed(context, '/monitoring');
-            },
+            onTap: _isTodayTaken
+                ? null
+                : () {
+                    Navigator.pushNamed(context, '/monitoring');
+                  },
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 14),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF285A48), Color(0xFF1E4435)],
+                  colors: _isTodayTaken
+                      ? [const Color(0xFF666666), const Color(0xFF4D4D4D)]
+                      : [const Color(0xFF285A48), const Color(0xFF1E4435)],
                 ),
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x66285A48),
-                    blurRadius: 20,
-                    offset: Offset(0, 6),
-                  ),
-                ],
+                boxShadow: _isTodayTaken
+                    ? null
+                    : const [
+                        BoxShadow(
+                          color: Color(0x66285A48),
+                          blurRadius: 20,
+                          offset: Offset(0, 6),
+                        ),
+                      ],
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.check, color: Colors.white, size: 20),
-                  SizedBox(width: 8),
+                  Icon(Icons.check,
+                      color: _isTodayTaken ? Colors.white38 : Colors.white,
+                      size: 20),
+                  const SizedBox(width: 8),
                   Text(
                     'Tandai Sudah',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: _isTodayTaken ? Colors.white38 : Colors.white,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
