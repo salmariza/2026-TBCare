@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:tbcare_app/data/services/database_service.dart';
-import 'package:tbcare_app/data/services/session_service.dart';
 
 class NotificationPage extends StatefulWidget {
   const NotificationPage({super.key});
@@ -61,29 +59,11 @@ class _NotificationPageState extends State<NotificationPage> {
 
   List<Map<String, dynamic>> _dummyNotifications() {
     return [
-      // --- June 1, 2026 (Senin) ---
-      {
-        'title': 'Waktunya minum obat',
-        'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
-        'time': '09:00 · 1 Jun',
-        'type': 'reminder',
-        'icon': Icons.notifications_active_rounded,
-        'color': const Color(0xFFB0E4CC),
-      },
-      // --- June 2, 2026 (Selasa) ---
-      {
-        'title': 'Waktunya minum obat',
-        'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
-        'time': '09:00 · 2 Jun',
-        'type': 'reminder',
-        'icon': Icons.notifications_active_rounded,
-        'color': const Color(0xFFB0E4CC),
-      },
       // --- June 3, 2026 (Rabu) ---
       {
         'title': 'Waktunya minum obat',
         'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
-        'time': '09:00 · 3 Jun',
+        'time': '12:00 · 3 Jun',
         'type': 'reminder',
         'icon': Icons.notifications_active_rounded,
         'color': const Color(0xFFB0E4CC),
@@ -92,7 +72,7 @@ class _NotificationPageState extends State<NotificationPage> {
       {
         'title': 'Waktunya minum obat',
         'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
-        'time': '09:00 · 4 Jun',
+        'time': '12:00 · 4 Jun',
         'type': 'reminder',
         'icon': Icons.notifications_active_rounded,
         'color': const Color(0xFFB0E4CC),
@@ -101,7 +81,7 @@ class _NotificationPageState extends State<NotificationPage> {
       {
         'title': 'Waktunya minum obat',
         'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
-        'time': '09:00 · 5 Jun',
+        'time': '12:00 · 5 Jun',
         'type': 'reminder',
         'icon': Icons.notifications_active_rounded,
         'color': const Color(0xFFB0E4CC),
@@ -110,13 +90,13 @@ class _NotificationPageState extends State<NotificationPage> {
       {
         'title': 'Waktunya minum obat',
         'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
-        'time': '09:00 · 6 Jun',
+        'time': '12:00 · 6 Jun',
         'type': 'reminder',
         'icon': Icons.notifications_active_rounded,
         'color': const Color(0xFFB0E4CC),
       },
       // --- June 7, 2026 (Minggu) ---
-      {
+      /*{
         'title': 'Waktunya minum obat',
         'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
         'time': '09:00 · 7 Jun',
@@ -132,7 +112,7 @@ class _NotificationPageState extends State<NotificationPage> {
         'type': 'reminder',
         'icon': Icons.notifications_active_rounded,
         'color': const Color(0xFFB0E4CC),
-      },
+      },*/
     ];
   }
 
