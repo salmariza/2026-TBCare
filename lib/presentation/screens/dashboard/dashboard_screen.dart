@@ -58,11 +58,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) {
         setState(() {
           _user = user;
-          _treatmentPlan = plan;
-          _medicines = medicines;
+          _treatmentPlan = plan ?? (DatabaseService.useDummyData
+              ? DatabaseService.getDummyTreatmentPlan()
+              : null);
+          _medicines = medicines.isNotEmpty
+              ? medicines
+              : (DatabaseService.useDummyData
+                  ? DatabaseService.getDummyMedicines()
+                  : []);
           _userBadges = badges;
-          _streak = streak;
+          _streak = DatabaseService.useDummyData ? 1 : streak;
           _weekTakenDates = weekDates;
+          if (DatabaseService.useDummyData) {
+            final merged = {...weekDates};
+            merged.addAll(DatabaseService.getDummyWeekTakenDates());
+            _weekTakenDates = merged.toList();
+          }
           _todayMonitoring = todayMon;
           _isLoading = false;
         });
@@ -151,7 +162,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   bool get _isTodayTaken =>
-      _todayMonitoring != null && _todayMonitoring!['status'] == 'taken';
+      _todayMonitoring != null &&
+      (_todayMonitoring!['status'] == 'taken' ||
+       _todayMonitoring!['status'] == 'taken_late');
 
   String get _todayTakenTime {
     if (_todayMonitoring == null || _todayMonitoring!['taken_at'] == null) {
@@ -658,7 +671,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ],
               ),
-              const Icon(Icons.more_vert, color: Color(0xFF285A48)),
             ],
           ),
           const SizedBox(height: 16),
@@ -703,8 +715,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             borderRadius: BorderRadius.circular(16),
             onTap: _isTodayTaken
                 ? null
-                : () {
-                    Navigator.pushNamed(context, '/monitoring');
+                : () async {
+                    await Navigator.pushNamed(context, '/monitoring');
+                    if (mounted) _loadDashboard();
                   },
             child: Container(
               width: double.infinity,
@@ -891,7 +904,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   margin: const EdgeInsets.symmetric(horizontal: 2),
                   decoration: BoxDecoration(
                     color: isDone
-                        ? const Color(0xFFFFB464) // Yellow
+                        ? Colors.white
                         : Colors.white.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(999),
                   ),

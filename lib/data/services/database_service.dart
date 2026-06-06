@@ -7,6 +7,129 @@ class DatabaseService {
 
   DatabaseService._init();
 
+  // TODO: set to false to remove dummy data after demo
+  static const bool useDummyData = true;
+
+  static List<Map<String, dynamic>> getDummyHistory() {
+    const meds = 'Rifampicin 300mg, Isoniazid 300mg, '
+        'Pyrazinamide 500mg, Ethambutol 400mg';
+
+    return [
+      // June 1, 2026 (Senin) — On Time
+      {
+        'date': '2026-06-01',
+        'status': 'taken',
+        'display_status': 'on_time',
+        'medicine_name': meds,
+        'taken_at': '2026-06-01T07:00:00',
+        'note': null,
+        'symptoms': <String>[],
+        'is_missed_day': false,
+      },
+      // June 2, 2026 (Selasa) — On Time
+      {
+        'date': '2026-06-02',
+        'status': 'taken',
+        'display_status': 'on_time',
+        'medicine_name': meds,
+        'taken_at': '2026-06-02T07:00:00',
+        'note': null,
+        'symptoms': <String>[],
+        'is_missed_day': false,
+      },
+      // June 3, 2026 (Rabu) — Late
+      {
+        'date': '2026-06-03',
+        'status': 'taken_late',
+        'display_status': 'late',
+        'medicine_name': meds,
+        'taken_at': '2026-06-03T11:30:12',
+        'note': 'Bangun kesiangan, baru sempat minum obat setelah sarapan.',
+        'symptoms': <String>['Pusing ringan'],
+        'is_missed_day': false,
+      },
+      // June 4, 2026 (Kamis) — Missed
+      {
+        'date': '2026-06-04',
+        'status': 'missed',
+        'display_status': 'missed',
+        'medicine_name': meds,
+        'taken_at': null,
+        'note': null,
+        'symptoms': <String>[],
+        'is_missed_day': true,
+      },
+      // June 5, 2026 (Jumat) — On Time
+      {
+        'date': '2026-06-05',
+        'status': 'taken',
+        'display_status': 'on_time',
+        'medicine_name': meds,
+        'taken_at': '2026-06-05T07:00:00',
+        'note': null,
+        'symptoms': <String>[],
+        'is_missed_day': false,
+      },
+    ];
+  }
+
+  static Map<String, dynamic> getDummyTreatmentPlan() {
+    return {
+      'id': 0,
+      'user_id': 0,
+      'start_date': '2026-06-01',
+      'end_date': '2026-11-27',
+      'total_days': 180,
+      'current_day': 6,
+      'status': 'active',
+      'reminder_enabled': 1,
+      'treatment_phase': 'Fase Intensif',
+    };
+  }
+
+  static List<Map<String, dynamic>> getDummyMedicines() {
+    return [
+      {
+        'id': 0,
+        'user_id': 0,
+        'name': 'Rifampicin 300mg, Isoniazid 300mg, '
+            'Pyrazinamide 500mg, Ethambutol 400mg',
+        'dosage': '1 tablet each',
+        'schedule': '07:00',
+        'treatment_phase': 'Fase Intensif',
+        'frequency': 'daily',
+      },
+    ];
+  }
+
+  /// Returns the dates in the current week that have on-time dummy entries.
+  static List<String> getDummyWeekTakenDates() {
+    final now = DateTime.now();
+    final weekStart = now.subtract(Duration(days: now.weekday - 1));
+    final weekEnd = weekStart.add(const Duration(days: 6));
+
+    final dummy = getDummyHistory();
+    final takenDates = <String>[];
+    for (final item in dummy) {
+      final st = item['status'] as String;
+      if (st == 'taken' || st == 'taken_late') {
+        final date = item['date'] as String;
+        try {
+          final parts = date.split('-');
+          final d = DateTime(
+            int.parse(parts[0]),
+            int.parse(parts[1]),
+            int.parse(parts[2]),
+          );
+          if (!d.isBefore(weekStart) && !d.isAfter(weekEnd)) {
+            takenDates.add(date);
+          }
+        } catch (_) {}
+      }
+    }
+    return takenDates;
+  }
+
   Future<Database> get database async {
     if (_db != null) return _db!;
     _db = await initDB();
@@ -733,6 +856,88 @@ class DatabaseService {
     ''', [userId, startDate, endDate]);
 
     return results.map((r) => r['date'] as String).toList();
+  }
+
+  // ─── RESET TREATMENT DATA ──────────────────────────
+
+  /// Completely resets all treatment progress and monitoring data
+  /// while preserving user account, medicine, and treatment configuration.
+  ///
+  /// Deletes: monitoring, monitoring_symptom, missed_dose, user_badge
+  /// Resets:  treatment_plan start_date to today, current_day to 1,
+  ///          end_date recalculated, status to 'active'
+  Future<void> resetTreatmentData(int userId) async {
+    final db = await database;
+
+    await db.transaction((txn) async {
+      // 1. Delete monitoring_symptom for all user's monitoring records
+      await txn.rawDelete('''
+        DELETE FROM monitoring_symptom
+        WHERE monitoring_id IN (
+          SELECT m.id FROM monitoring m
+          JOIN medicine med ON m.medicine_id = med.id
+          WHERE med.user_id = ?
+        )
+      ''', [userId]);
+
+      // 2. Delete all monitoring records for user's medicines
+      await txn.rawDelete('''
+        DELETE FROM monitoring
+        WHERE medicine_id IN (
+          SELECT id FROM medicine WHERE user_id = ?
+        )
+      ''', [userId]);
+
+      // 3. Delete all missed_dose records for user's medicines
+      await txn.rawDelete('''
+        DELETE FROM missed_dose
+        WHERE medicine_id IN (
+          SELECT id FROM medicine WHERE user_id = ?
+        )
+      ''', [userId]);
+
+      // 4. Delete all user_badge records (earned badges)
+      await txn.rawDelete('''
+        DELETE FROM user_badge WHERE user_id = ?
+      ''', [userId]);
+
+      // 5. Reset treatment plan: set today as new start date
+      final now = DateTime.now();
+      final todayStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      // Get the current plan to preserve total_days and other config
+      final plans = await txn.query(
+        'treatment_plan',
+        where: 'user_id = ?',
+        whereArgs: [userId],
+        orderBy: 'id DESC',
+        limit: 1,
+      );
+
+      if (plans.isNotEmpty) {
+        final plan = plans.first;
+        final totalDays = plan['total_days'] as int? ?? 180;
+
+        // Calculate new end_date from today + total_days
+        final endDate =
+            now.add(Duration(days: totalDays - 1));
+        final endDateStr =
+            '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
+
+        await txn.update(
+          'treatment_plan',
+          {
+            'start_date': todayStr,
+            'end_date': endDateStr,
+            'current_day': 1,
+            'status': 'active',
+          },
+          where: 'id = ?',
+          whereArgs: [plan['id']],
+        );
+      }
+    });
   }
 
   // ─── CLOSE DATABASE ─────

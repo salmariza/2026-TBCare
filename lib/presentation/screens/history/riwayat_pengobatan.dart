@@ -26,6 +26,7 @@ class _HistoryPageState extends State<HistoryPage> {
     _loadData();
   }
 
+
   Future<void> _loadData() async {
     final userId = SessionService.instance.currentUserId;
     if (userId == null) {
@@ -40,8 +41,10 @@ class _HistoryPageState extends State<HistoryPage> {
       final plan = await db.getTreatmentPlan(userId);
       final medicines = await db.getMedicines(userId);
 
-      // Group monitoring records by date (one entry per day)
+      // Collect dates that already have real monitoring records
       final monitoredDates = <String>{};
+
+      // Group monitoring records by date (one entry per day)
       final groupedByDate = <String, List<Map<String, dynamic>>>{};
 
       for (final item in history) {
@@ -114,8 +117,18 @@ class _HistoryPageState extends State<HistoryPage> {
         });
       }
 
+      // Merge dummy data for demo (only for dates without real data)
+      if (DatabaseService.useDummyData) {
+        for (final item in DatabaseService.getDummyHistory()) {
+          if (!monitoredDates.contains(item['date'])) {
+            enriched.add(item);
+          }
+        }
+      }
+
       // Find missed days (days with NO monitoring record)
-      if (plan != null && medicines.isNotEmpty) {
+      // Skip this when using dummy data — dummy already covers the gap days
+      if (!DatabaseService.useDummyData && plan != null && medicines.isNotEmpty) {
         final startStr = plan['start_date'] as String;
         final startDate = DateTime.tryParse(startStr);
         if (startDate != null) {
@@ -163,9 +176,6 @@ class _HistoryPageState extends State<HistoryPage> {
         }
       }
 
-      // Append dummy data for June 1-8, 2026
-      enriched.addAll(_dummyHistory());
-
       // Sort by date descending
       enriched.sort((a, b) {
         final aDate = a['date'] as String;
@@ -189,7 +199,7 @@ class _HistoryPageState extends State<HistoryPage> {
         setState(() {
           _allHistory = enriched;
           _totalDoses = taken;
-          _streak = streak;
+          _streak = DatabaseService.useDummyData ? 1 : streak;
           _complianceRate = rate;
           _isLoading = false;
           _applyFilter();
@@ -198,104 +208,6 @@ class _HistoryPageState extends State<HistoryPage> {
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  /// Dummy treatment history data for June 1-8, 2026.
-  /// Realistic patient who mostly adheres, occasionally late, missed once.
-  List<Map<String, dynamic>> _dummyHistory() {
-    const meds = 'Rifampicin 300mg, Isoniazid 300mg, '
-        'Pyrazinamide 500mg, Ethambutol 400mg';
-
-    return [
-      // --- June 1, 2026 (Senin) — On Time ---
-      /*{
-        'date': '2026-06-01',
-        'status': 'taken',
-        'display_status': 'on_time',
-        'medicine_name': meds,
-        'taken_at': '2026-06-01T09:00:00',
-        'note': null,
-        'symptoms': <String>[],
-        'is_missed_day': false,
-      },
-      // --- June 2, 2026 (Selasa) — On Time ---
-      {
-        'date': '2026-06-02',
-        'status': 'taken',
-        'display_status': 'on_time',
-        'medicine_name': meds,
-        'taken_at': '2026-06-02T09:00:00',
-        'note': null,
-        'symptoms': <String>[],
-        'is_missed_day': false,
-      },*/
-      // --- June 3, 2026 (Rabu) — Late ---
-      {
-        'date': '2026-06-03',
-        'status': 'taken_late',
-        'display_status': 'late',
-        'medicine_name': meds,
-        'taken_at': '2026-06-03T11:30:12',
-        'note': 'Bangun kesiangan, baru sempat minum obat setelah sarapan.',
-        'symptoms': <String>['Pusing ringan'],
-        'is_missed_day': false,
-      },
-      // --- June 4, 2026 (Kamis) — Missed (today) ---
-      {
-        'date': '2026-06-04',
-        'status': 'missed',
-        'display_status': 'missed',
-        'medicine_name': meds,
-        'taken_at': null,
-        'note': null,
-        'symptoms': <String>[],
-        'is_missed_day': true,
-      },
-      // --- June 5, 2026 (Jumat) — On Time ---
-      {
-        'date': '2026-06-05',
-        'status': 'taken',
-        'display_status': 'on_time',
-        'medicine_name': meds,
-        'taken_at': '2026-06-05T09:00:00',
-        'note': null,
-        'symptoms': <String>[],
-        'is_missed_day': false,
-      },
-      // --- June 6, 2026 (Sabtu) — Late ---
-      /*{
-        'date': '2026-06-06',
-        'status': 'taken_late',
-        'display_status': 'late',
-        'medicine_name': meds,
-        'taken_at': '2026-06-06T10:15:58',
-        'note': 'Lupa bawa obat saat keluar rumah, baru minum setelah pulang.',
-        'symptoms': <String>['Batuk', 'Lelah'],
-        'is_missed_day': false,
-      },
-      // --- June 7, 2026 (Minggu) — On Time ---
-      {
-        'date': '2026-06-07',
-        'status': 'taken',
-        'display_status': 'on_time',
-        'medicine_name': meds,
-        'taken_at': '2026-06-07T09:00:00',
-        'note': null,
-        'symptoms': <String>[],
-        'is_missed_day': false,
-      },
-      // --- June 8, 2026 (Senin) — Missed (the only one) ---
-      {
-        'date': '2026-06-08',
-        'status': 'missed',
-        'display_status': 'missed',
-        'medicine_name': meds,
-        'taken_at': null,
-        'note': null,
-        'symptoms': <String>[],
-        'is_missed_day': true,
-      }, */
-    ];
   }
 
   void _applyFilter() {

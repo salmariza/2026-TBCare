@@ -47,14 +47,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final streak = await db.calculateStreak(userId);
       final history = await db.getMonitoringHistory(userId);
 
-      int taken = 0;
-      int missed = 0;
+      // Count unique dates (match history page: group by date, one per day)
+      final takenDates = <String>{};
       for (final item in history) {
         final status = item['status'] as String? ?? '';
-        if (status == 'taken' || status == 'taken_late') {
-          taken++;
-        } else {
-          missed++;
+        final date = item['date'] as String? ?? '';
+        if ((status == 'taken' || status == 'taken_late') && date.isNotEmpty) {
+          takenDates.add(date);
+        }
+      }
+
+      int taken = takenDates.length;
+      int missed = 0;
+
+      // Merge dummy data into stats for demo
+      if (DatabaseService.useDummyData) {
+        for (final item in DatabaseService.getDummyHistory()) {
+          final status = item['status'] as String? ?? '';
+          if (status == 'taken' || status == 'taken_late') {
+            taken++;
+          } else {
+            missed++;
+          }
         }
       }
 
@@ -80,13 +94,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         setState(() {
           _user = user;
-          _plan = plan;
-          _streak = streak;
+          _plan = plan ?? (DatabaseService.useDummyData
+              ? DatabaseService.getDummyTreatmentPlan()
+              : null);
+          _streak = DatabaseService.useDummyData ? 1 : streak;
           _dosesTaken = taken;
           _dosesMissed = missed;
           _totalDays = totalDays;
-          _currentDay = currentDay;
-          _remainingDays = remainingDays < 0 ? 0 : remainingDays;
+          _currentDay = DatabaseService.useDummyData ? 6 : currentDay;
+          _remainingDays = DatabaseService.useDummyData
+              ? totalDays - 6
+              : (remainingDays < 0 ? 0 : remainingDays);
           _complianceRate = rate;
           _isLoading = false;
         });
@@ -1126,7 +1144,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         SessionService.instance.clear();
         Navigator.pushNamedAndRemoveUntil(
           context,
-          '/welcome',
+          '/login',
           (route) => false,
         );
       },
