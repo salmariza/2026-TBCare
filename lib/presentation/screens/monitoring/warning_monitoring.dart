@@ -57,7 +57,7 @@ class _WarningPageState extends State<WarningPage> {
         'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
         'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
       ];
-      return '${days[date.weekday]}, ${date.day} ${months[date.month - 1]}';
+      return '${days[date.weekday % 7]}, ${date.day} ${months[date.month - 1]}';
     } catch (_) {
       return dateStr;
     }
@@ -289,10 +289,20 @@ class _WarningPageState extends State<WarningPage> {
   }
 
   Future<void> _startFromDayOne() async {
+    final userId = SessionService.instance.currentUserId;
+    if (userId == null) return;
+
+    // First resolve all missed doses and restore plan status
     await _resolveMissedDoses();
 
+    // Then completely reset all treatment progress and monitoring data:
+    // deletes monitoring, monitoring_symptom, missed_dose, user_badge records
+    // and resets treatment_plan start_date to today, current_day to 1
+    final db = DatabaseService.instance;
+    await db.resetTreatmentData(userId);
+
     if (mounted) {
-      Navigator.pushReplacementNamed(context, '/monitoring');
+      Navigator.pushReplacementNamed(context, '/dashboard');
     }
   }
 

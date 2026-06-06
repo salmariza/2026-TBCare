@@ -63,7 +63,7 @@ class _NotificationPageState extends State<NotificationPage> {
       {
         'title': 'Waktunya minum obat',
         'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
-        'time': '12:00 · 3 Jun',
+        'time': '07:00 · 3 Jun',
         'type': 'reminder',
         'icon': Icons.notifications_active_rounded,
         'color': const Color(0xFFB0E4CC),
@@ -72,7 +72,7 @@ class _NotificationPageState extends State<NotificationPage> {
       {
         'title': 'Waktunya minum obat',
         'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
-        'time': '12:00 · 4 Jun',
+        'time': '07:00 · 4 Jun',
         'type': 'reminder',
         'icon': Icons.notifications_active_rounded,
         'color': const Color(0xFFB0E4CC),
@@ -81,7 +81,7 @@ class _NotificationPageState extends State<NotificationPage> {
       {
         'title': 'Waktunya minum obat',
         'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
-        'time': '12:00 · 5 Jun',
+        'time': '07:00 · 5 Jun',
         'type': 'reminder',
         'icon': Icons.notifications_active_rounded,
         'color': const Color(0xFFB0E4CC),
@@ -90,7 +90,7 @@ class _NotificationPageState extends State<NotificationPage> {
       {
         'title': 'Waktunya minum obat',
         'message': 'Pengingat harian: Minum obat TB sesuai jadwal pagi',
-        'time': '12:00 · 6 Jun',
+        'time': '07:00 · 6 Jun',
         'type': 'reminder',
         'icon': Icons.notifications_active_rounded,
         'color': const Color(0xFFB0E4CC),
