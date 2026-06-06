@@ -45,40 +45,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final user = await db.getUser(userId);
       final plan = await db.getTreatmentPlan(userId);
       final streak = await db.calculateStreak(userId);
-      final history = await db.getMonitoringHistory(userId);
 
-      // Count unique dates (match history page: group by date, one per day)
-      final takenDates = <String>{};
-      for (final item in history) {
-        final status = item['status'] as String? ?? '';
-        final date = item['date'] as String? ?? '';
-        if ((status == 'taken' || status == 'taken_late') && date.isNotEmpty) {
-          takenDates.add(date);
-        }
-      }
+      // Use the same adherence calculation as the Treatment History page
+      final stats = await db.getAdherenceStats(userId);
+      final int taken = stats['taken'] as int;
+      final int missed = stats['missed'] as int;
+      final double complianceRate = (stats['complianceRate'] as num).toDouble();
 
-      int taken = takenDates.length;
-      int missed = 0;
-
-      // Merge dummy data into stats for demo
-      if (DatabaseService.useDummyData) {
-        for (final item in DatabaseService.getDummyHistory()) {
-          final status = item['status'] as String? ?? '';
-          if (status == 'taken' || status == 'taken_late') {
-            taken++;
-          } else {
-            missed++;
-          }
-        }
-      }
-
-      // Calculate plan stats
+      // Calculate plan stats — fall back to dummy plan for display when
+      // no real plan exists.
       int totalDays = 180;
       int currentDay = 0;
       int remainingDays = 0;
-      if (plan != null) {
-        totalDays = plan['total_days'] as int? ?? 180;
-        final startStr = plan['start_date'] as String?;
+
+      final effectivePlan = plan ?? (DatabaseService.useDummyData
+          ? DatabaseService.getDummyTreatmentPlan()
+          : null);
+
+      if (effectivePlan != null) {
+        totalDays = effectivePlan['total_days'] as int? ?? 180;
+        final startStr = effectivePlan['start_date'] as String?;
         if (startStr != null) {
           final startDate = DateTime.tryParse(startStr);
           if (startDate != null) {
@@ -88,24 +74,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
 
-      final totalRecords = taken + missed;
-      final rate = totalRecords == 0 ? 0.0 : (taken / totalRecords * 100);
-
       if (mounted) {
         setState(() {
           _user = user;
-          _plan = plan ?? (DatabaseService.useDummyData
-              ? DatabaseService.getDummyTreatmentPlan()
-              : null);
-          _streak = DatabaseService.useDummyData ? 1 : streak;
+          _plan = effectivePlan;
+          _streak = streak;
           _dosesTaken = taken;
           _dosesMissed = missed;
           _totalDays = totalDays;
-          _currentDay = DatabaseService.useDummyData ? 6 : currentDay;
-          _remainingDays = DatabaseService.useDummyData
-              ? totalDays - 6
-              : (remainingDays < 0 ? 0 : remainingDays);
-          _complianceRate = rate;
+          _currentDay = currentDay;
+          _remainingDays = remainingDays < 0 ? 0 : remainingDays;
+          _complianceRate = complianceRate;
           _isLoading = false;
         });
       }

@@ -57,7 +57,7 @@ class _WarningPageState extends State<WarningPage> {
         'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
         'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
       ];
-      return '${days[date.weekday]}, ${date.day} ${months[date.month - 1]}';
+      return '${days[date.weekday % 7]}, ${date.day} ${months[date.month - 1]}';
     } catch (_) {
       return dateStr;
     }

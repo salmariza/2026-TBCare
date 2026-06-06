@@ -10,6 +10,11 @@ class DatabaseService {
   // TODO: set to false to remove dummy data after demo
   static const bool useDummyData = true;
 
+  /// Dummy records (June 1-6) count as valid treatment days in all
+  /// business logic. Only Warning Monitoring / missed-dose detection
+  /// starts from this date — June 7 onward.
+  static const String realDataStartDate = '2026-06-07';
+
   static List<Map<String, dynamic>> getDummyHistory() {
     const meds = 'Rifampicin 300mg, Isoniazid 300mg, '
         'Pyrazinamide 500mg, Ethambutol 400mg';
@@ -70,6 +75,17 @@ class DatabaseService {
         'symptoms': <String>[],
         'is_missed_day': false,
       },
+      // June 6, 2026 (Sabtu) — On Time
+      {
+        'date': '2026-06-06',
+        'status': 'taken',
+        'display_status': 'on_time',
+        'medicine_name': meds,
+        'taken_at': '2026-06-06T07:00:00',
+        'note': null,
+        'symptoms': <String>[],
+        'is_missed_day': false,
+      },
     ];
   }
 
@@ -80,7 +96,7 @@ class DatabaseService {
       'start_date': '2026-06-01',
       'end_date': '2026-11-27',
       'total_days': 180,
-      'current_day': 6,
+      'current_day': 7,
       'status': 'active',
       'reminder_enabled': 1,
       'treatment_phase': 'Fase Intensif',
@@ -565,9 +581,9 @@ class DatabaseService {
       SELECT md.*, med.name AS medicine_name
       FROM missed_dose md
       JOIN medicine med ON md.medicine_id = med.id
-      WHERE med.user_id = ?
+      WHERE med.user_id = ? AND md.missed_date >= ?
       ORDER BY md.missed_date DESC
-    ''', [userId]);
+    ''', [userId, realDataStartDate]);
   }
 
   Future<Map<String, dynamic>?> getMissedDoseByDate(
@@ -620,8 +636,9 @@ class DatabaseService {
       FROM missed_dose md
       JOIN medicine med ON md.medicine_id = med.id
       WHERE med.user_id = ? AND md.resolved = 0
+        AND md.missed_date >= ?
       LIMIT 1
-    ''', [userId]);
+    ''', [userId, realDataStartDate]);
 
     return results.isNotEmpty;
   }
@@ -658,6 +675,13 @@ class DatabaseService {
       gapStart = DateTime.tryParse(plan['start_date'] as String);
     }
 
+    // Clamp to realDataStartDate — dummy data before this date must not
+    // trigger missed-dose detection.
+    final realStart = DateTime.tryParse(realDataStartDate);
+    if (realStart != null && (gapStart == null || gapStart.isBefore(realStart))) {
+      gapStart = realStart;
+    }
+
     // Find the most recent monitoring date
     String? lastMonitoredDate;
     final takenDates = await getMonitoringDates(userId, 'taken');
@@ -689,6 +713,11 @@ class DatabaseService {
       if (gapStart == null || nextDay.isAfter(gapStart)) {
         gapStart = nextDay;
       }
+    }
+
+    // Re-clamp after adjusting from last monitored date
+    if (realStart != null && gapStart != null && gapStart.isBefore(realStart)) {
+      gapStart = realStart;
     }
 
     if (gapStart == null) return;
@@ -856,6 +885,130 @@ class DatabaseService {
     ''', [userId, startDate, endDate]);
 
     return results.map((r) => r['date'] as String).toList();
+  }
+
+  // ─── ADHERENCE STATS ──────────────────────────────────
+
+  /// Returns adherence statistics computed consistently with the
+  /// Treatment History page. Dummy records (June 1-6) count as valid
+  /// treatment days alongside real monitoring data.
+  ///
+  /// Returns: `{taken, missed, totalDays, complianceRate}`
+  Future<Map<String, dynamic>> getAdherenceStats(int userId) async {
+    final history = await getMonitoringHistory(userId);
+    final plan = await getTreatmentPlan(userId);
+    final medicines = await getMedicines(userId);
+
+    final monitoredDates = <String>{};
+
+    // Group monitoring records by date (one entry per day)
+    final groupedByDate = <String, List<Map<String, dynamic>>>{};
+    for (final item in history) {
+      final date = item['date'] as String;
+      monitoredDates.add(date);
+      groupedByDate.putIfAbsent(date, () => []).add(item);
+    }
+
+    // Build list with one unique entry per date
+    final entries = <Map<String, dynamic>>[];
+    for (final entry in groupedByDate.entries) {
+      final date = entry.key;
+      final records = entry.value;
+
+      String overallStatus = 'taken';
+      for (final r in records) {
+        final st = r['status'] as String? ?? '';
+        if (st == 'taken_late') overallStatus = 'taken_late';
+      }
+
+      final displayStatus =
+          overallStatus == 'taken_late' ? 'late' : 'on_time';
+
+      entries.add({
+        'date': date,
+        'display_status': displayStatus,
+      });
+    }
+
+    // Merge dummy data (only for dates without real monitoring records)
+    if (useDummyData) {
+      for (final item in getDummyHistory()) {
+        if (!monitoredDates.contains(item['date'])) {
+          entries.add({
+            'date': item['date'],
+            'display_status': item['display_status'],
+          });
+        }
+      }
+    }
+
+    // Detect missed days: walk from plan start (clamped to realDataStartDate)
+    // to yesterday; any date with no monitoring record is a missed day.
+    // Skip when useDummyData is on — dummy already fills the gap visually.
+    if (!useDummyData && plan != null && medicines.isNotEmpty) {
+      final startStr = plan['start_date'] as String?;
+      final startDate = DateTime.tryParse(startStr ?? '');
+      if (startDate != null) {
+        final realStart = DateTime.tryParse(realDataStartDate);
+        final effectiveStart =
+            realStart != null && startDate.isBefore(realStart)
+                ? realStart
+                : startDate;
+
+        final now = DateTime.now();
+        for (var d = effectiveStart;
+            d.isBefore(now);
+            d = d.add(const Duration(days: 1))) {
+          final dateStr =
+              '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+          if (monitoredDates.contains(dateStr)) continue;
+          // Skip today — not yet missed
+          final todayStr =
+              '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+          if (dateStr == todayStr) continue;
+
+          // Check 24h+ past schedule
+          final scheduleStr =
+              medicines.first['schedule'] as String? ?? '07:00';
+          final parts = scheduleStr.split(':');
+          final scheduleHour = int.tryParse(parts[0]) ?? 7;
+          final scheduleMinute =
+              int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;
+          final scheduledDate =
+              DateTime(d.year, d.month, d.day, scheduleHour, scheduleMinute);
+
+          if (now.isAfter(scheduledDate.add(const Duration(hours: 24)))) {
+            entries.add({
+              'date': dateStr,
+              'display_status': 'missed',
+            });
+          }
+        }
+      }
+    }
+
+    // Count ALL entries (including dummy data)
+    int taken = 0;
+    int totalDays = 0;
+    for (final item in entries) {
+      totalDays++;
+      final ds = item['display_status'] as String;
+      if (ds == 'on_time' || ds == 'late') {
+        taken++;
+      }
+    }
+
+    final int missed = totalDays - taken;
+    final double rate =
+        totalDays == 0 ? 0.0 : (taken / totalDays * 100);
+
+    return {
+      'taken': taken,
+      'missed': missed,
+      'totalDays': totalDays,
+      'complianceRate': rate,
+    };
   }
 
   // ─── RESET TREATMENT DATA ──────────────────────────

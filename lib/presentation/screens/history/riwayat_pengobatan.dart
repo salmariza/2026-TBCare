@@ -183,24 +183,17 @@ class _HistoryPageState extends State<HistoryPage> {
         return bDate.compareTo(aDate);
       });
 
-      // Count taken doses (on_time + late both count)
-      int taken = 0;
-      for (final item in enriched) {
-        if (item['display_status'] == 'on_time' ||
-            item['display_status'] == 'late') {
-          taken++;
-        }
-      }
-
-      final totalDays = enriched.length;
-      final rate = totalDays == 0 ? 0.0 : (taken / totalDays * 100);
+      // Use the same adherence calculation as the Profile page
+      final stats = await db.getAdherenceStats(userId);
+      final int taken = stats['taken'] as int;
+      final double complianceRate = (stats['complianceRate'] as num).toDouble();
 
       if (mounted) {
         setState(() {
           _allHistory = enriched;
           _totalDoses = taken;
-          _streak = DatabaseService.useDummyData ? 1 : streak;
-          _complianceRate = rate;
+          _streak = streak;
+          _complianceRate = complianceRate;
           _isLoading = false;
           _applyFilter();
         });

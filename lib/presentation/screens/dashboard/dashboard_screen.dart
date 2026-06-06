@@ -67,7 +67,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ? DatabaseService.getDummyMedicines()
                   : []);
           _userBadges = badges;
-          _streak = DatabaseService.useDummyData ? 1 : streak;
+          _streak = streak;
           _weekTakenDates = weekDates;
           if (DatabaseService.useDummyData) {
             final merged = {...weekDates};
@@ -158,7 +158,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
       'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
     ];
-    return '${days[now.weekday]}, ${now.day} ${months[now.month - 1]}';
+    return '${days[now.weekday % 7]}, ${now.day} ${months[now.month - 1]}';
   }
 
   bool get _isTodayTaken =>
